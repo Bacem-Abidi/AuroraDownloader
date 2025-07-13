@@ -1,0 +1,181 @@
+{% block downloader %}
+<div class="panel">
+  <div class="control-group">
+    <h3>Video/Playlist URL</h3>
+    <div class="input-group">
+      <input
+        type="text"
+        class="form-control"
+        id="youtube-url"
+        placeholder="https://www.youtube.com/watch?v=..."
+      />
+      <button id="download-btn" class="btn btn-primary">
+        <i class="fas fa-download"></i> Download
+      </button>
+    </div>
+  </div>
+  <div class="config-group">
+    <h3>Download Options</h3>
+    <div class="options-grid">
+      <div class="option">
+        <label>Audio Quality</label>
+        <select id="audio-quality" class="form-control">
+          <option value="best">Best Available (320kbps if possible)</option>
+          <option value="320">320 kbps (High Quality)</option>
+          <option value="256">256 kbps (Good Quality)</option>
+          <option value="192">192 kbps (Standard)</option>
+          <option value="128">128 kbps (Basic)</option>
+        </select>
+      </div>
+      <div class="option">
+        <label>Audio Format</label>
+        <select id="audio-codec" class="form-control">
+          <option value="mp3">MP3 (Most Compatible)</option>
+          <option value="aac">AAC (Better Quality)</option>
+          <option value="flac">FLAC (Lossless)</option>
+          <option value="opus">Opus (Efficient)</option>
+          <option value="wav">WAV (Uncompressed)</option>
+        </select>
+      </div>
+    </div>
+    <div class="options-grid" style="margin-top: 20px">
+      <div class="option">
+        <label>Audio Destination</label>
+        <div class="input-group">
+          <input
+            type="text"
+            id="audio-dir"
+            class="form-control"
+            value="Downloads/Songs"
+          />
+        </div>
+      </div>
+      <div class="option">
+        <label>Lyrics Destination</label>
+        <div class="input-group">
+          <input
+            type="text"
+            id="lyrics-dir"
+            class="form-control"
+            value="Downloads/Lyrics"
+          />
+        </div>
+      </div>
+      <div class="option">
+        <label>Playlists Destination</label>
+        <div class="input-group">
+          <input
+            type="text"
+            id="playlist-dir"
+            class="form-control"
+            value="Downloads/Playlists"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="config-group">
+    <h3>File Handling</h3>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="overwrite-files" />
+      <label class="form-check-label" for="overwrite-files">
+        Overwrite existing files
+      </label>
+    </div>
+  </div>
+  <div class="playlist-options" id="playlist-options" style="display: none">
+    <div class="option-header">
+      <h3>Playlist Options</h3>
+      <div class="tooltip-container">
+        <i class="bi bi-question-circle"></i>
+        <div class="tooltip">
+          <strong>Path Formats:</strong><br />
+          • Relative: Paths relative to playlist file<br />
+          • Filenames: Only the song filename<br />
+          • Absolute: Full path (default if none selected)
+        </div>
+      </div>
+    </div>
+    <div class="option-group">
+      <div class="form-check">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          id="relative-paths"
+          checked
+        />
+        <label class="form-check-label" for="relative-paths">
+          Use relative paths in playlists
+        </label>
+      </div>
+
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="filename-only" />
+        <label class="form-check-label" for="filename-only">
+          Use only filenames in playlists
+        </label>
+      </div>
+    </div>
+  </div>
+  <!-- MPD Integration -->
+  <div class="mpd-options">
+    <h3>
+      MPD Integration
+      <div class="tooltip-container">
+        <i class="bi bi-question-circle"></i>
+        <div class="tooltip">
+          <strong>MPD Integration:</strong><br />
+          Updates your MPD library after downloads complete.<br /><br />
+          Requires <code>mpd</code> and <code>mpc</code> to be installed.<br />
+          <strong>Default command:</strong> <code>mpc update</code>
+        </div>
+      </div>
+    </h3>
+
+    <div class="option-group">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="update-mpd" />
+        <label class="form-check-label" for="update-mpd">
+          Update MPD library after download
+        </label>
+      </div>
+    </div>
+    <!-- Collapsible advanced options -->
+    <details id="mpd-advanced" style="display: none; margin-top: 15px">
+      <summary>Advanced Options</summary>
+      <div class="options-grid" style="margin-top: 10px">
+        <div class="option">
+          <label>MPC Path</label>
+          <input type="text" class="form-control" id="mpc-path" value="mpc" />
+        </div>
+        <div class="option">
+          <label>MPC Command</label>
+          <input
+            type="text"
+            class="form-control"
+            id="mpc-command"
+            value="update"
+          />
+        </div>
+      </div>
+    </details>
+  </div>
+  <div class="playlist-status" id="playlist-status">
+    <div class="playlist-header">
+      <h4><i class="fas fa-list"></i> Playlist Download</h4>
+      <span id="playlist-progress-text">0/0</span>
+    </div>
+    <div class="playlist-title" id="playlist-title">Untitled Playlist</div>
+    <div class="playlist-progress">
+      <div class="playlist-progress-bar" id="playlist-progress-bar"></div>
+    </div>
+  </div>
+  <div class="mpd-status" id="mpd-status" style="display: none">
+    <div class="mpd-header">
+      <h4><i class="fas fa-sync-alt"></i> MPD Update</h4>
+      <span id="mpd-status-text">Pending...</span>
+    </div>
+    <div class="mpd-output" id="mpd-output"></div>
+  </div>
+</div>
+{% endblock %}

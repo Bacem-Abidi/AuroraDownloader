@@ -1,0 +1,54 @@
+{% extends "base.html" %} {% block title %}Melodrive{% endblock %} {% block
+styles %} {{ super() }}
+<link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/style.css') }}"
+/>
+
+{% endblock %} {% block content %}
+
+<div class="container">
+  <header>
+    <div class="logo">
+      <i class="fas fa-music"></i>
+      <div>
+        <h1>Melodrive</h1>
+        <p class="subtitle">Youtube to mp3 donwloader</p>
+      </div>
+    </div>
+    <div class="header-actions">
+        <button id="history-button" class="btn btn-outline-secondary">
+            <i class="fas fa-history"></i> History
+        </button>
+    </div>
+  </header>
+  <div class="main-content">
+   
+    {% block downloader %}
+      {% include "download_panel.html" %}
+    {% endblock %}
+
+
+    {% block defaultconfig %}
+      {% include "default_config.html" %}
+    {% endblock %}
+    
+    {% block log %}
+      {% include "log_panel.html" %}
+    {% endblock %}
+
+    {% block history %}
+      {% include "history_panel.html" %}
+    {% endblock %}
+  </div>
+</div>
+
+{% endblock %} {% block scripts %} {{ super() }}
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+<script src="{{ url_for('static', filename='js/history.js') }}"></script>
+{% endblock %}

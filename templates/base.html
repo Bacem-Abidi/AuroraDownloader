@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    {% block head %}
+    <!-- <link rel="stylesheet" href="style.css" /> -->
+    {% block styles %}{% endblock %}
+    <title>{% block title %}{% endblock %}</title>
+    {% endblock %} {% block scripts %}{% endblock %}
+  </head>
+  <body>
+    <div id="content">
+      {% block content %}{% endblock %}
+      <!-- <div id="footer"> -->
+      <!--   {% block footer %} &copy; Copyright 2025 by -->
+      <!--   <a href="http://domain.invalid/">Bacem Abidi</a>. {% endblock %} -->
+      <!-- </div> -->
+    </div>
+  </body>
+</html>

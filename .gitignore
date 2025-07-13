@@ -1,0 +1,6 @@
+temp/
+Downloads/
+__pycache__/
+downloader/__pycache__/
+downloader_v1.py
+*.json

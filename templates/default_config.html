@@ -1,0 +1,152 @@
+{% block defaultconfig %}
+<div class="defaults-toggle" id="defaults-toggle">
+  <i class="fas fa-cog"></i> Change Defaults
+  <i class="fas fa-chevron-down" id="defaults-chevron"></i>
+</div>
+<div class="panel defaults-panel" id="defaults-panel" style="display: none">
+  <!-- Quality and Format Selection -->
+  <div class="config-grid">
+    <div class="config-group">
+      <h3>Audio Quality</h3>
+      <div class="option">
+        <select id="audio-quality-default" class="form-control">
+          <option value="best">Best Available</option>
+          <option value="320">320 kbps (High Quality)</option>
+          <option value="256">256 kbps (Very Good)</option>
+          <option value="192">192 kbps (Good)</option>
+          <option value="128">128 kbps (Standard)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="config-group">
+      <h3>Audio Format</h3>
+      <div class="option">
+        <select id="audio-codec-default" class="form-control">
+          <option value="mp3">MP3 (Most Compatible)</option>
+          <option value="aac">AAC (Better Quality)</option>
+          <option value="m4a">M4A (Apple Devices)</option>
+          <option value="flac">FLAC (Lossless)</option>
+          <option value="opus">Opus (Efficient)</option>
+          <option value="wav">WAV (Uncompressed)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Directory Selection -->
+  <div class="directory-grid">
+    <div class="dir-option">
+      <h3>Audio Destination</h3>
+      <div class="input-group">
+        <input
+          type="text"
+          id="audio-dir-default"
+          class="form-control"
+          value="Downloads"
+        />
+      </div>
+    </div>
+
+    <div class="dir-option">
+      <h3>Lyrics Destination</h3>
+      <div class="input-group">
+        <input
+          type="text"
+          id="lyrics-dir-default"
+          class="form-control"
+          value="Lyrics"
+        />
+      </div>
+    </div>
+
+    <div class="dir-option">
+      <h3>Playlists Destination</h3>
+      <div class="input-group">
+        <input
+          type="text"
+          id="playlist-dir-default"
+          class="form-control"
+          value="Playlists"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Playlist Options -->
+  <div class="playlist-options" id="playlist-options" style="display: none">
+    <h3>Playlist Options</h3>
+    <div class="option-group">
+      <div class="form-check">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          id="relative-paths-default"
+          checked
+        />
+        <label class="form-check-label" for="relative-paths">
+          Use relative paths in playlists
+        </label>
+      </div>
+      <div class="form-check">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          id="filename-only-default"
+        />
+        <label class="form-check-label" for="filename-only">
+          Use only filenames in playlists
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- MPD Integration -->
+  <div class="mpd-options">
+    <h3>MPD Integration</h3>
+    <div class="option-group">
+      <div class="form-check">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          id="update-mpd-default"
+        />
+        <label class="form-check-label" for="update-mpd">
+          Update MPD library after download
+        </label>
+      </div>
+    </div>
+    <div
+      class="option-group"
+      id="mpd-advanced"
+      style="display: none; margin-top: 10px"
+    >
+      <div class="option">
+        <label>MPC Path</label>
+        <input
+          type="text"
+          class="form-control"
+          id="mpc-path-default"
+          value="mpc"
+        />
+      </div>
+      <div class="option">
+        <label>MPC Command</label>
+        <input
+          type="text"
+          class="form-control"
+          id="mpc-command-default"
+          value="update"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Defaults Button -->
+  <div class="save-defaults">
+    <button class="btn btn-outline-secondary" id="save-defaults">
+      <i class="fas fa-save"></i> Save as Default Settings
+    </button>
+  </div>
+</div>
+{% endblock %}
