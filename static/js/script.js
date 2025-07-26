@@ -22,71 +22,50 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveDefaultsBtn = document.getElementById("save-defaults");
 
   // Load saved preferences
-  function loadPreferences() {
-    const savedPrefs = localStorage.getItem("harmonigrab_preferences");
+  async function loadPreferences() {
+    try {
+      const response = await fetch("/preferences");
+      const prefs = await response.json();
 
-    if (savedPrefs) {
-      try {
-        const prefs = JSON.parse(savedPrefs);
+      // Apply preferences to form fields
+      document.getElementById("audio-quality").value = prefs.audioQuality;
+      document.getElementById("audio-quality-default").value =
+        prefs.audioQuality;
 
-        // Apply preferences to form fields
-        if (prefs.audioQuality) {
-          document.getElementById("audio-quality").value = prefs.audioQuality;
-          document.getElementById("audio-quality-default").value =
-            prefs.audioQuality;
-        }
-        if (prefs.audioCodec) {
-          document.getElementById("audio-codec").value = prefs.audioCodec;
-          document.getElementById("audio-codec-default").value =
-            prefs.audioCodec;
-        }
-        if (prefs.audioDir) {
-          document.getElementById("audio-dir").value = prefs.audioDir;
-          document.getElementById("audio-dir-default").value = prefs.audioDir;
-        }
-        if (prefs.lyricsDir) {
-          document.getElementById("lyrics-dir").value = prefs.lyricsDir;
-          document.getElementById("lyrics-dir-default").value = prefs.lyricsDir;
-        }
-        if (prefs.playlistDir) {
-          document.getElementById("playlist-dir").value = prefs.playlistDir;
-          document.getElementById("playlist-dir-default").value =
-            prefs.playlistDir;
-        }
-        if (prefs.updateMpd !== undefined) {
-          document.getElementById("update-mpd").checked = prefs.updateMpd;
-          document.getElementById("update-mpd-default").checked =
-            prefs.updateMpd;
-          document.getElementById("mpd-advanced").style.display =
-            prefs.updateMpd ? "block" : "none";
-          document.getElementById("mpd-advanced-default").style.display =
-            prefs.updateMpd ? "block" : "none";
-        }
-        if (prefs.mpcPath) {
-          document.getElementById("mpc-path").value = prefs.mpcPath;
-          document.getElementById("mpc-path").value = prefs.mpcPath;
-        }
-        if (prefs.mpcCommand) {
-          document.getElementById("mpc-command").value = prefs.mpcCommand;
-          document.getElementById("mpc-command-default").value =
-            prefs.mpcCommand;
-        }
-        if (prefs.advancedPanelOpen !== undefined) {
-          if (prefs.advancedPanelOpen) {
-            defaultConfigPanel.style.display = "block";
-            defaultConfigChevron.className = "fas fa-chevron-up";
-          }
-        }
+      document.getElementById("audio-codec").value = prefs.audioCodec;
+      document.getElementById("audio-codec-default").value = prefs.audioCodec;
 
-        console.log("Preferences loaded successfully");
-      } catch (e) {
-        console.error("Error loading preferences:", e);
-      }
+      document.getElementById("audio-dir").value = prefs.audioDir;
+      document.getElementById("audio-dir-default").value = prefs.audioDir;
+
+      document.getElementById("lyrics-dir").value = prefs.lyricsDir;
+      document.getElementById("lyrics-dir-default").value = prefs.lyricsDir;
+
+      document.getElementById("playlist-dir").value = prefs.playlistDir;
+      document.getElementById("playlist-dir-default").value = prefs.playlistDir;
+
+      document.getElementById("update-mpd").checked = prefs.updateMpd;
+      document.getElementById("update-mpd-default").checked = prefs.updateMpd;
+      document.getElementById("mpd-advanced").style.display = prefs.updateMpd
+        ? "block"
+        : "none";
+      document.getElementById("mpd-advanced-default").style.display =
+        prefs.updateMpd ? "block" : "none";
+
+      document.getElementById("mpc-path").value = prefs.mpcPath;
+      document.getElementById("mpc-path").value = prefs.mpcPath;
+
+      document.getElementById("mpc-command").value = prefs.mpcCommand;
+      document.getElementById("mpc-command-default").value = prefs.mpcCommand;
+
+      console.log("Preferences loaded successfully");
+    } catch (e) {
+      console.error("Error loading preferences:", e);
     }
   }
 
   // Save preferences to localStorage
-  function savePreferences() {
+  async function savePreferences() {
     const preferences = {
       audioQuality: document.getElementById("audio-quality-default").value,
       audioCodec: document.getElementById("audio-codec-default").value,
@@ -96,14 +75,24 @@ document.addEventListener("DOMContentLoaded", () => {
       updateMpd: document.getElementById("update-mpd-default").checked,
       mpcPath: document.getElementById("mpc-path-default").value,
       mpcCommand: document.getElementById("mpc-command-default").value,
-      advancedPanelOpen: defaultConfigPanel.style.display === "block",
     };
+    try {
+      const response = await fetch("/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(preferences),
+      });
 
-    localStorage.setItem(
-      "harmonigrab_preferences",
-      JSON.stringify(preferences),
-    );
-    showToast("Settings saved as defaults!");
+      const result = await response.json();
+      if (response.ok) {
+        showToast("Settings saved successfully!");
+      } else {
+        showToast(`Error: ${result.error}`, true);
+      }
+    } catch (e) {
+      console.error("Error saving preferences:", e);
+      showToast("Failed to save settings", true);
+    }
   }
 
   // Show toast notification

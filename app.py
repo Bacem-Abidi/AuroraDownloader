@@ -14,6 +14,7 @@ from flask_bootstrap import Bootstrap5
 from downloader import download_manager
 from flask import Flask, render_template, request, jsonify, Response
 
+PREFS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'preferences.json')
 app = Flask(__name__)
 app.config["REDIS_URL"] = "redis://localhost"  # For production, use a real Redis server
 app.register_blueprint(sse, url_prefix='/stream')
@@ -22,6 +23,46 @@ Bootstrap5(app)
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/preferences', methods=['GET'])
+def get_preferences():
+    try:
+        if os.path.exists(PREFS_FILE):
+            with open(PREFS_FILE, 'r') as f:
+                return jsonify(json.load(f))
+        else:
+            # Return default config structure
+            return jsonify({
+                "audioQuality": "best",
+                "audioCodec": "mp3",
+                "audioDir": "~/Music",
+                "lyricsDir": "~/Music/lyrics",
+                "playlistDir": "~/.config/mpd/playlists",
+                "updateMpd": True,
+                "mpcPath": "mpc",
+                "mpcCommand": "update"
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/preferences', methods=['POST'])
+def save_preferences():
+    try:
+        prefs = request.json
+        
+        # Validate required fields
+        required = ["audioQuality", "audioCodec", "audioDir", "updateMpd"]
+        if not all(field in prefs for field in required):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Save to file
+        with open(PREFS_FILE, 'w') as f:
+            json.dump(prefs, f, indent=2)
+            
+        return jsonify({'message': 'Preferences saved successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/start_download', methods=['POST'])
