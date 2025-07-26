@@ -162,7 +162,8 @@ input:focus {
   font-size: 0.9rem;
 }
 
-.option select {
+.option select,
+.history-controls select {
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);

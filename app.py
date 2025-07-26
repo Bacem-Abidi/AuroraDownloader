@@ -7,10 +7,11 @@ import json
 import posixpath
 from pathlib import Path
 from flask_sse import sse
+from datetime import datetime
 from ytmusicapi import YTMusic
+from history import HistoryLogger
 from flask_bootstrap import Bootstrap5
 from downloader import download_manager
-from history import HistoryLogger
 from flask import Flask, render_template, request, jsonify, Response
 
 app = Flask(__name__)
@@ -111,7 +112,6 @@ def history_data():
     history_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'history')
     
     if week == 'current':
-        # Use the HistoryLogger to get current week file
         logger = HistoryLogger(history_dir)
         file_path = logger.get_week_file()
     else:
@@ -123,7 +123,15 @@ def history_data():
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             history = json.load(f)
-        return jsonify(history)
+        
+        # Improved sorting with proper datetime conversion
+        sorted_history = sorted(
+            history,
+            key=lambda x: datetime.fromisoformat(x['timestamp']),
+            reverse=True
+        )
+        
+        return jsonify(sorted_history)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

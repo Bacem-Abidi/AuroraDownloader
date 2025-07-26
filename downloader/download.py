@@ -130,8 +130,8 @@ class DownloadManager:
                         audio_dir, 
                         lyrics_dir,
                         is_playlist,
-                        playlist_title,
-                        overwrite
+                        overwrite,
+                        playlist_title
                     )
                     
                     if video_file:
@@ -214,7 +214,6 @@ class DownloadManager:
             # Check if file exists and overwrite is disabled
             if os.path.exists(output_path) and not overwrite:
                 log_queue.put(f"[SKIPPED] File exists: {output_filename}")
-                log_queue.put(f"[SKIPPED] File exists: {overwrite}")
                 self._log_history(is_playlist, playlist_title, url, output_path, 
                                 uploader, lrc_file, quality, codec, 'skipped')
                 return output_path

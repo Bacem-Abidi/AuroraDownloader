@@ -26,11 +26,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Load history files
   async function loadHistoryFiles() {
+    // Month names for readable formatting
+    const monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+
     try {
       const response = await fetch("/history_files");
       const files = await response.json();
-
-      // Clear existing options
       historyWeekSelect.innerHTML = "";
 
       // Add current week option
@@ -39,11 +53,45 @@ document.addEventListener("DOMContentLoaded", () => {
       currentOption.textContent = "Current Week";
       historyWeekSelect.appendChild(currentOption);
 
-      // Add other weeks
+      // Process and add history files
       files.forEach((file) => {
         const option = document.createElement("option");
         option.value = file;
-        option.textContent = file.replace("history_", "").replace(".json", "");
+
+        // Extract date parts from filename
+        const dateString = file.match(
+          /history_(\d{4})-(\d{2})-(\d{2})_to_(\d{4})-(\d{2})-(\d{2})\.json/,
+        );
+
+        if (dateString) {
+          // Parse dates
+          const [, startY, startM, startD, endY, endM, endD] = dateString;
+          const startDate = new Date(startY, startM - 1, startD);
+          const endDate = new Date(endY, endM - 1, endD);
+
+          // Format readable date range
+          let displayText;
+          if (startDate.getFullYear() === endDate.getFullYear()) {
+            if (startDate.getMonth() === endDate.getMonth()) {
+              // Same month: "July 21-27, 2025"
+              displayText = `${monthNames[startDate.getMonth()]} ${startDate.getDate()}-${endDate.getDate()}, ${startY}`;
+            } else {
+              // Different months, same year: "July 21 - August 3, 2025"
+              displayText = `${monthNames[startDate.getMonth()]} ${startDate.getDate()} - ${monthNames[endDate.getMonth()]} ${endDate.getDate()}, ${startY}`;
+            }
+          } else {
+            // Different years: "December 28, 2025 - January 3, 2026"
+            displayText = `${monthNames[startDate.getMonth()]} ${startDate.getDate()}, ${startY} - ${monthNames[endDate.getMonth()]} ${endDate.getDate()}, ${endY}`;
+          }
+          option.textContent = displayText;
+        } else {
+          // Fallback to original format if parsing fails
+          option.textContent = file
+            .replace("history_", "")
+            .replace(".json", "")
+            .replace(/_/g, " ");
+        }
+
         historyWeekSelect.appendChild(option);
       });
 
