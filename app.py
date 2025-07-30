@@ -14,7 +14,9 @@ from flask_bootstrap import Bootstrap5
 from downloader import download_manager
 from flask import Flask, render_template, request, jsonify, Response
 
-PREFS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'preferences.json')
+CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config')
+PREFS_FILE = os.path.join(CONFIG_DIR, 'preferences.json')
+# progress_tracker = ProgressTracker(CONFIG_DIR)
 app = Flask(__name__)
 app.config["REDIS_URL"] = "redis://localhost"  # For production, use a real Redis server
 app.register_blueprint(sse, url_prefix='/stream')
@@ -77,6 +79,7 @@ def start_download():
     playlist_options = data.get('playlist_options', {})
     mpd_options = data.get('mpd_options', {})
     overwrite = data.get('overwrite', False)
+    resume = data.get('resume', False)
     
    # Expand paths and convert to absolute paths
     def expand_path(path):
@@ -116,7 +119,9 @@ def start_download():
         playlist_options=playlist_options,
         mpd_options=mpd_options,
         history_dir=history_dir,
-        overwrite=overwrite
+        overwrite=overwrite,
+        resume=resume,
+        config_dir=CONFIG_DIR
     )
     
     return jsonify({

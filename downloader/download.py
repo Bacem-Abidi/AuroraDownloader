@@ -15,6 +15,7 @@ from .playlist import PlaylistManager
 from .thumbnail import ThumbnailManager
 from .mpd_manager import MPDManager
 from history import HistoryLogger
+from progress_tracker import ProgressTracker
 from .utils import get_extension, get_quality_setting 
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -28,6 +29,8 @@ class DownloadManager:
         self.history_logger = None
         self.custom_temp_dir = "temp"
         os.makedirs(self.custom_temp_dir, exist_ok=True)
+        config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config')
+
         
         # Initialize helper classes
         self.metadata_manager = MetadataManager(self.custom_temp_dir)
@@ -38,7 +41,7 @@ class DownloadManager:
 
     def start_download(self, url, download_id, quality='best', codec='mp3', 
                       audio_dir="Downloads", lyrics_dir="Lyrics", playlist_dir="Playlists",
-                      playlist_options=None, mpd_options=None, history_dir=None, overwrite=False):
+                      playlist_options=None, mpd_options=None, history_dir=None, overwrite=False, resume=False, config_dir=None):
         """Start a download process in a separate thread"""
         if download_id in self.active_downloads:
             return
@@ -47,6 +50,8 @@ class DownloadManager:
         Path(audio_dir).mkdir(parents=True, exist_ok=True)
         Path(lyrics_dir).mkdir(parents=True, exist_ok=True)
         Path(playlist_dir).mkdir(parents=True, exist_ok=True)
+
+        self.progress_tracker = ProgressTracker(config_dir)
 
         if history_dir:
             self.history_logger = HistoryLogger(history_dir)
@@ -60,13 +65,13 @@ class DownloadManager:
         thread = threading.Thread(
             target=self._download_thread, 
             args=(url, download_id, log_queue, quality, codec, audio_dir, lyrics_dir,
-                  playlist_dir,playlist_options, mpd_options,overwrite),
+                  playlist_dir,playlist_options, mpd_options,overwrite, resume),
             daemon=True
         )
         thread.start()
     
     def _download_thread(self, url, download_id, log_queue, quality, codec, audio_dir, 
-                         lyrics_dir, playlist_dir, playlist_options, mpd_options, overwrite):
+                         lyrics_dir, playlist_dir, playlist_options, mpd_options, overwrite, resume=False):
         """The actual download thread"""
         thumbnail_path = None
         output_file = None
@@ -115,9 +120,37 @@ class DownloadManager:
 
             if is_playlist:
                 log_queue.put(f"[PLAYLIST] Starting download of playlist: {playlist_title}")
+
+
+                # Generate playlist file path
+                playlist_file = os.path.join(playlist_dir, f"{playlist_title}.m3u")
+                
+                # Load existing playlist entries if resuming
+                if resume and os.path.exists(playlist_file):
+                    try:
+                        with open(playlist_file, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                line = line.strip()
+                                if line and not line.startswith('#'):
+                                    playlist_files.append(line)
+                        log_queue.put(f"[PROGRESS] Loaded {len(playlist_files)} existing tracks from playlist")
+                    except Exception as e:
+                        log_queue.put(f"[WARNING] Failed to load existing playlist: {str(e)}")
+
+                start_index = 0
+                if resume:
+                    progress = self.progress_tracker.get_progress(url)
+                    if progress:
+                        start_index = progress["last_index"] + 1
+                        log_queue.put(f"[PROGRESS] Resuming from track {start_index+1}/{len(playlist_entries)}")
+                    else:
+                        log_queue.put("[PROGRESS] No progress found, starting from beginning")
                 
                 # Download each video in the playlist
                 for i, entry in enumerate(playlist_entries):
+                    if i < start_index:
+                        continue
+
                     video_url = f"https://www.youtube.com/watch?v={entry['id']}"
                     log_queue.put(f"[PLAYLIST] Downloading video {i+1}/{len(playlist_entries)}: {entry.get('title', 'Untitled')}")
 
@@ -136,6 +169,12 @@ class DownloadManager:
                     
                     if video_file:
                         playlist_files.append(video_file)
+                        self.progress_tracker.save_progress(
+                            url, 
+                            playlist_title, 
+                            i, 
+                            len(playlist_entries)
+                        )
                         
                         log_queue.put(f"[PLAYLIST] Completed video {i+1}/{len(playlist_entries)}")
                     else:

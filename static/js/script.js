@@ -220,6 +220,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const mpcCommand = document.getElementById("mpc-command").value;
 
     const overwriteFiles = document.getElementById("overwrite-files").checked;
+    const resumeDownload = document.getElementById("resume-download").checked;
 
     if (!url) {
       addLog("[ERROR] Please enter a YouTube URL", "error");
@@ -264,6 +265,7 @@ document.addEventListener("DOMContentLoaded", () => {
             mpc_command: mpcCommand,
           },
           overwrite: overwriteFiles,
+          resume: resumeDownload,
         }),
       });
 
