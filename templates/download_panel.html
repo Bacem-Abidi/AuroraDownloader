@@ -92,29 +92,41 @@
           <strong>Path Formats:</strong><br />
           • Relative: Paths relative to playlist file<br />
           • Filenames: Only the song filename<br />
-          • Absolute: Full path (default if none selected)
+          • Absolute: Full path
         </div>
       </div>
     </div>
-    <div class="option-group">
+    <details id="playlist-advanced" style="margin-bottom: 10px">
+      <summary>Playlist Path Options</summary>
+      <div class="option-group">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="absolute-paths" />
+        <label class="form-check-label" for="absolute-paths">
+          Use absolute paths
+        </label>
+      </div>
+
       <div class="form-check">
         <input
           class="form-check-input"
           type="checkbox"
           id="relative-paths"
-          checked
         />
         <label class="form-check-label" for="relative-paths">
-          Use relative paths in playlists
+          Use relative paths
         </label>
       </div>
 
       <div class="form-check">
-        <input class="form-check-input" type="checkbox" id="filename-only" />
+        <input class="form-check-input" type="checkbox" id="filename-only" checked/>
         <label class="form-check-label" for="filename-only">
-          Use only filenames in playlists
+          Use only filenames
         </label>
       </div>
+
+    </div>
+    </details>
+    <div class="option-group">
       <div class="form-check">
         <input class="form-check-input" type="checkbox" id="resume-download">
         <label class="form-check-label" for="resume-download">
@@ -123,6 +135,7 @@
         <div class="form-text">Start where you left off if this playlist was previously downloaded</div>
       </div>
     </div>
+    
   </div>
   <!-- MPD Integration -->
   <div class="mpd-options">

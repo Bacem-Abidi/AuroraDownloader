@@ -8,13 +8,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const lyricsDirInput = document.getElementById("lyrics-dir");
   const playlistDirInput = document.getElementById("playlist-dir");
 
+  const absolutePathsCheckbox = document.getElementById("absolute-paths");
   const relativePathsCheckbox = document.getElementById("relative-paths");
   const filenameOnlyCheckbox = document.getElementById("filename-only");
+
+  const absolutePathsDefaultCheckbox = document.getElementById(
+    "absolute-paths-default",
+  );
+  const relativePathsDefaultCheckbox = document.getElementById(
+    "relative-paths-default",
+  );
+  const filenameOnlyDefaultCheckbox = document.getElementById(
+    "filename-only-default",
+  );
   const playlistOptions = document.getElementById("playlist-options");
 
   const updateMpdCheckbox = document.getElementById("update-mpd");
   const mpdAdvancedSection = document.getElementById("mpd-advanced");
 
+  const updateMpdCheckboxDefault =
+    document.getElementById("update-mpd-default");
+  const mpdAdvancedSectionDefault = document.getElementById(
+    "mpd-advanced-default",
+  );
   // Advanced Panel Elements
   const defaultConfigToggle = document.getElementById("defaults-toggle");
   const defaultConfigPanel = document.getElementById("defaults-panel");
@@ -53,10 +69,25 @@ document.addEventListener("DOMContentLoaded", () => {
         prefs.updateMpd ? "block" : "none";
 
       document.getElementById("mpc-path").value = prefs.mpcPath;
-      document.getElementById("mpc-path").value = prefs.mpcPath;
+      document.getElementById("mpc-path-default").value = prefs.mpcPath;
 
       document.getElementById("mpc-command").value = prefs.mpcCommand;
       document.getElementById("mpc-command-default").value = prefs.mpcCommand;
+
+      absolutePathsCheckbox.checked = prefs.absolutePaths;
+      relativePathsCheckbox.checked = prefs.relativePaths;
+      filenameOnlyCheckbox.checked = prefs.fileNames;
+
+      absolutePathsDefaultCheckbox.checked = prefs.absolutePaths;
+      relativePathsDefaultCheckbox.checked = prefs.relativePaths;
+      filenameOnlyDefaultCheckbox.checked = prefs.fileNames;
+
+      document.getElementById("resume-download").checked = prefs.resume;
+      document.getElementById("resume-download-default").checked = prefs.resume;
+
+      document.getElementById("overwrite-files").checked = prefs.overwrite;
+      document.getElementById("overwrite-files-default").checked =
+        prefs.overwrite;
 
       console.log("Preferences loaded successfully");
     } catch (e) {
@@ -75,6 +106,11 @@ document.addEventListener("DOMContentLoaded", () => {
       updateMpd: document.getElementById("update-mpd-default").checked,
       mpcPath: document.getElementById("mpc-path-default").value,
       mpcCommand: document.getElementById("mpc-command-default").value,
+      relativePaths: relativePathsDefaultCheckbox.checked,
+      absolutePaths: absolutePathsDefaultCheckbox.checked,
+      fileNames: filenameOnlyDefaultCheckbox.checked,
+      resume: document.getElementById("resume-download-default").checked,
+      overwrite: document.getElementById("overwrite-files-default").checked,
     };
     try {
       const response = await fetch("/preferences", {
@@ -145,15 +181,43 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   // Ensure only one option is selected
+  absolutePathsCheckbox.addEventListener("change", () => {
+    if (absolutePathsCheckbox.checked) {
+      filenameOnlyCheckbox.checked = false;
+      relativePathsCheckbox.checked = false;
+    }
+  });
   relativePathsCheckbox.addEventListener("change", () => {
     if (relativePathsCheckbox.checked) {
       filenameOnlyCheckbox.checked = false;
+      absolutePathsCheckbox.checked = false;
     }
   });
 
   filenameOnlyCheckbox.addEventListener("change", () => {
     if (filenameOnlyCheckbox.checked) {
       relativePathsCheckbox.checked = false;
+      absolutePathsCheckbox.checked = false;
+    }
+  });
+
+  absolutePathsDefaultCheckbox.addEventListener("change", () => {
+    if (absolutePathsDefaultCheckbox.checked) {
+      filenameOnlyDefaultCheckbox.checked = false;
+      relativePathsDefaultCheckbox.checked = false;
+    }
+  });
+  relativePathsDefaultCheckbox.addEventListener("change", () => {
+    if (relativePathsDefaultCheckbox.checked) {
+      filenameOnlyDefaultCheckbox.checked = false;
+      absolutePathsDefaultCheckbox.checked = false;
+    }
+  });
+
+  filenameOnlyDefaultCheckbox.addEventListener("change", () => {
+    if (filenameOnlyDefaultCheckbox.checked) {
+      relativePathsDefaultCheckbox.checked = false;
+      absolutePathsDefaultCheckbox.checked = false;
     }
   });
 
@@ -162,7 +226,11 @@ document.addEventListener("DOMContentLoaded", () => {
       ? "block"
       : "none";
   });
-
+  updateMpdCheckboxDefault.addEventListener("change", () => {
+    mpdAdvancedSectionDefault.style.display = updateMpdCheckboxDefault.checked
+      ? "block"
+      : "none";
+  });
   // Add log entry to the UI
   function addLog(message, type = "info") {
     const logEntry = document.createElement("div");

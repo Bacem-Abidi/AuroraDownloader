@@ -73,18 +73,35 @@
     </div>
   </div>
 
+  <div class="config-group">
+    <h3>File Handling</h3>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="overwrite-files-default" />
+      <label class="form-check-label" for="overwrite-files-default">
+        Overwrite existing files
+      </label>
+    </div>
+  </div>
+
   <!-- Playlist Options -->
-  <div class="playlist-options" id="playlist-options" style="display: none">
+  <div class="playlist-options" id="playlist-options">
     <h3>Playlist Options</h3>
+    <details id="playlist-advanced" style="margin-bottom: 10px">
+      <summary>Playlist Path Options</summary>
     <div class="option-group">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="absolute-paths-default" />
+        <label class="form-check-label" for="absolute-paths-default">
+          Use absolute paths
+        </label>
+      </div>
       <div class="form-check">
         <input
           class="form-check-input"
           type="checkbox"
           id="relative-paths-default"
-          checked
         />
-        <label class="form-check-label" for="relative-paths">
+        <label class="form-check-label" for="relative-paths-default">
           Use relative paths in playlists
         </label>
       </div>
@@ -93,10 +110,21 @@
           class="form-check-input"
           type="checkbox"
           id="filename-only-default"
+          checked
         />
-        <label class="form-check-label" for="filename-only">
+        <label class="form-check-label" for="filename-only-default">
           Use only filenames in playlists
         </label>
+      </div>
+    </div>
+    </details>
+    <div class="option-group">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="resume-download-default">
+        <label class="form-check-label" for="resume-download-default">
+            Resume from last download position
+        </label>
+        <div class="form-text">Start where you left off if this playlist was previously downloaded</div>
       </div>
     </div>
   </div>
@@ -111,35 +139,30 @@
           type="checkbox"
           id="update-mpd-default"
         />
-        <label class="form-check-label" for="update-mpd">
+        <label class="form-check-label" for="update-mpd-default">
           Update MPD library after download
         </label>
       </div>
     </div>
-    <div
-      class="option-group"
-      id="mpd-advanced"
-      style="display: none; margin-top: 10px"
-    >
-      <div class="option">
-        <label>MPC Path</label>
-        <input
-          type="text"
-          class="form-control"
-          id="mpc-path-default"
-          value="mpc"
-        />
+    <!-- Collapsible advanced options -->
+    <details id="mpd-advanced-default" style="display: none; margin-top: 15px">
+      <summary>Advanced Options</summary>
+      <div class="options-grid" style="margin-top: 10px">
+        <div class="option">
+          <label>MPC Path</label>
+          <input type="text" class="form-control" id="mpc-path-default" value="mpc" />
+        </div>
+        <div class="option">
+          <label>MPC Command</label>
+          <input
+            type="text"
+            class="form-control"
+            id="mpc-command-default"
+            value="update"
+          />
+        </div>
       </div>
-      <div class="option">
-        <label>MPC Command</label>
-        <input
-          type="text"
-          class="form-control"
-          id="mpc-command-default"
-          value="update"
-        />
-      </div>
-    </div>
+    </details>
   </div>
 
   <!-- Save Defaults Button -->
