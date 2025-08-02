@@ -200,34 +200,79 @@ input:focus {
   line-height: 1.5;
   /* white-space: pre-wrap; */
   word-break: break-word;
+  font-family: "Fira Code", "Consolas", monospace;
+}
+.log-tag {
+  font-weight: bold;
+  min-width: 110px;
+  margin-right: 8px;
+  text-align: right;
 }
 
-.log-success {
-  color: var(--success) !important;
+.log-content {
+  flex-grow: 1;
+  word-break: break-word;
 }
 
-.log-warning {
-  color: var(--warning) !important;
+/* Specific tag colors */
+.log-tag.log-playlist {
+  color: #5bc8af !important; /* Muted turquoise */
 }
 
-.log-error {
-  color: var(--danger) !important;
+.log-tag.log-metadata {
+  color: #6ca0dc !important; /* Muted blue */
 }
 
-.log-info {
-  color: var(--text-secondary);
+.log-tag.log-thumbnail {
+  color: #c97c94 !important; /* Muted rose */
 }
 
-.log-download {
-  color: var(--highlight) !important;
+.log-tag.log-lyrics {
+  color: #58bfa4 !important; /* Calm green */
 }
 
-.log-convert {
-  color: #9c27b0;
+.log-tag.log-quality {
+  color: #a3c7d6 !important; /* Soft teal */
 }
 
-.log-metadata {
-  color: #2196f3;
+.log-tag.log-settings {
+  color: #b39ddb !important; /* Soft lavender */
+}
+
+.log-tag.log-command {
+  color: #90a4ae !important; /* Muted blue-gray */
+}
+
+.log-tag.log-debug {
+  color: #b0bec5 !important; /* Light gray-blue */
+}
+
+.log-tag.log-download {
+  color: #4dd0e1 !important; /* Cyan toned down */
+}
+
+.log-tag.log-convert {
+  color: #b39ddb !important; /* Light purple (shared with settings) */
+}
+
+.log-tag.log-success {
+  color: #81c784 !important; /* Soft green */
+}
+
+.log-tag.log-warning {
+  color: #ffb74d !important; /* Mellow orange */
+}
+
+.log-tag.log-error {
+  color: #e57373 !important; /* Soft red */
+}
+
+.log-tag.log-mpd {
+  color: #7986cb !important; /* Soft indigo */
+}
+
+.log-tag.log-system {
+  color: #64b5f6 !important; /* Light blue for system messages */
 }
 
 /* Scrollbar styling */

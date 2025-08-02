@@ -258,37 +258,95 @@ document.addEventListener("DOMContentLoaded", () => {
   // Add log entry to the UI
   function addLog(message, type = "info") {
     const logEntry = document.createElement("div");
-    logEntry.className = `log-entry log-${type}`;
+    logEntry.className = "log-entry";
+
+    // Extract timestamp
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    // Create tag element
+    const tag = document.createElement("span");
+    tag.className = "log-tag";
+
+    // Create content element
+    const content = document.createElement("span");
+    content.className = "log-content";
 
     // Auto-detect log types based on content
-    if (message.includes("[ERROR]")) {
-      logEntry.classList.add("log-error");
-    } else if (message.includes("[WARNING]")) {
-      logEntry.classList.add("log-warning");
-    } else if (message.includes("[SUCCESS]")) {
-      logEntry.classList.add("log-success");
-    } else if (message.includes("[DOWNLOAD]")) {
-      logEntry.classList.add("log-download");
-    } else if (message.includes("[CONVERT]")) {
-      logEntry.classList.add("log-convert");
-    } else if (
-      message.includes("[METADATA]") ||
-      message.includes("[THUMBNAIL]") ||
-      message.includes("[LYRICS]")
-    ) {
-      logEntry.classList.add("log-metadata");
-    } else if (
-      message.startsWith("[MPD]") &&
-      !message.includes("successfully")
-    ) {
-      updateMpdStatus("In progress...", message.replace("[mpd]", ""));
-    } else if (message.startsWith("[ERROR] MPD")) {
-      updateMpdStatus("Failed", message);
-    } else if (message.includes("[MPD] Library updated successfully")) {
-      updateMpdStatus("Completed", message.replace("[mpd]", ""));
+    let logType = "info";
+    let logTag = "SYSTEM";
+
+    // Map of tags to detect
+    const tagMap = [
+      { tag: "[DIRECTORY]", type: "system" },
+      { tag: "[PLAYLIST]", type: "playlist" },
+      { tag: "[METADATA]", type: "metadata" },
+      { tag: "[THUMBNAIL]", type: "thumbnail" },
+      { tag: "[LYRICS]", type: "lyrics" },
+      { tag: "[QUALITY]", type: "quality" },
+      { tag: "[SETTINGS]", type: "settings" },
+      { tag: "[COMMAND]", type: "command" },
+      { tag: "[debug]", type: "debug" },
+      { tag: "[download]", type: "download" },
+      { tag: "[ExtractAudio]", type: "convert" },
+      { tag: "[Convert]", type: "convert" },
+      { tag: "[SUCCESS]", type: "success" },
+      { tag: "[WARNING]", type: "warning" },
+      { tag: "[ERROR]", type: "error" },
+      { tag: "[MPD]", type: "mpd" },
+      { tag: "[CLEANUP]", type: "system" },
+      { tag: "[PROGRESS]", type: "system" },
+    ];
+
+    // Find matching tag
+    for (const { tag, type } of tagMap) {
+      if (message.includes(tag)) {
+        logType = type;
+        logTag = tag.replace(/[\[\]]/g, ""); // Remove brackets
+        break;
+      }
     }
 
-    logEntry.textContent = message;
+    // Special cases
+    if (message.includes("yt-dlp")) logType = "command";
+    if (message.includes("ffmpeg")) logType = "convert";
+
+    // Set tag content with timestamp
+    tag.textContent = `[${logTag.toUpperCase()}:${timestamp}]`;
+
+    // Set message content without the first occurrence of the tag
+    let cleanMessage = message;
+    for (const { tag } of tagMap) {
+      if (cleanMessage.includes(tag)) {
+        cleanMessage = cleanMessage.replace(tag, "").trim();
+        break;
+      }
+    }
+    content.textContent = cleanMessage;
+
+    // Add type-specific class
+    tag.classList.add(`log-${logType}`);
+    content.classList.add(`log-${logType}`);
+
+    // Append elements
+    logEntry.appendChild(tag);
+    logEntry.appendChild(content);
+
+    // Special handling for MPD messages
+    if (logType === "mpd") {
+      if (!message.includes("successfully")) {
+        updateMpdStatus("In progress...", message.replace("[mpd]", ""));
+      } else if (message.includes("[ERROR] MPD")) {
+        updateMpdStatus("Failed", message);
+      } else if (message.includes("[MPD] Library updated successfully")) {
+        updateMpdStatus("Completed", message.replace("[mpd]", ""));
+      }
+    }
+
     logOutput.appendChild(logEntry);
     logOutput.scrollTop = logOutput.scrollHeight;
   }
