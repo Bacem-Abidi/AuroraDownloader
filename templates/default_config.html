@@ -3,7 +3,7 @@
   <i class="fas fa-cog"></i> Change Defaults
   <i class="fas fa-chevron-down" id="defaults-chevron"></i>
 </div>
-<div class="panel defaults-panel" id="defaults-panel" style="display: none">
+<div class="defaults-panel panel" id="defaults-panel">
   <!-- Quality and Format Selection -->
   <div class="config-grid">
     <div class="config-group">
@@ -86,38 +86,42 @@
   <!-- Playlist Options -->
   <div class="playlist-options" id="playlist-options">
     <h3>Playlist Options</h3>
-    <details id="playlist-advanced" style="margin-bottom: 10px">
-      <summary>Playlist Path Options</summary>
-    <div class="option-group">
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" id="absolute-paths-default" />
-        <label class="form-check-label" for="absolute-paths-default">
-          Use absolute paths
-        </label>
+    <div class="collapsible-container" id="playlist-advanced-default">
+      <div class="collapsible-header" onclick="toggleCollapse(this)">
+        <span class="arrow">▶</span> Playlist Path Options
       </div>
-      <div class="form-check">
-        <input
-          class="form-check-input"
-          type="checkbox"
-          id="relative-paths-default"
-        />
-        <label class="form-check-label" for="relative-paths-default">
-          Use relative paths in playlists
-        </label>
-      </div>
-      <div class="form-check">
-        <input
-          class="form-check-input"
-          type="checkbox"
-          id="filename-only-default"
-          checked
-        />
-        <label class="form-check-label" for="filename-only-default">
-          Use only filenames in playlists
-        </label>
+      <div class="collapsible-content">
+        <div class="option-group">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="absolute-paths-default" />
+            <label class="form-check-label" for="absolute-paths-default">
+              Use absolute paths
+            </label>
+          </div>
+          <div class="form-check">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="relative-paths-default"
+            />
+            <label class="form-check-label" for="relative-paths-default">
+              Use relative paths in playlists
+            </label>
+          </div>
+          <div class="form-check">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="filename-only-default"
+              checked
+            />
+            <label class="form-check-label" for="filename-only-default">
+              Use only filenames in playlists
+            </label>
+          </div>
+        </div>
       </div>
     </div>
-    </details>
     <div class="option-group">
       <div class="form-check">
         <input class="form-check-input" type="checkbox" id="resume-download-default">
@@ -145,24 +149,28 @@
       </div>
     </div>
     <!-- Collapsible advanced options -->
-    <details id="mpd-advanced-default" style="display: none; margin-top: 15px">
-      <summary>Advanced Options</summary>
-      <div class="options-grid" style="margin-top: 10px">
-        <div class="option">
-          <label>MPC Path</label>
-          <input type="text" class="form-control" id="mpc-path-default" value="mpc" />
-        </div>
-        <div class="option">
-          <label>MPC Command</label>
-          <input
-            type="text"
-            class="form-control"
-            id="mpc-command-default"
-            value="update"
-          />
+    <div class="collapsible-container" id="mpd-advanced-default" style="margin-top: 15px; margin-bottom: 0px;">
+      <div class="collapsible-header" onclick="toggleCollapse(this)">
+        <span class="arrow">▶</span> Advanced Options
+      </div>
+      <div class="collapsible-content">
+        <div class="options-grid" style="margin-top: 10px">
+          <div class="option">
+            <label>MPC Path</label>
+            <input type="text" class="form-control" id="mpc-path-default" value="mpc" />
+          </div>
+          <div class="option">
+            <label>MPC Command</label>
+            <input
+              type="text"
+              class="form-control"
+              id="mpc-command-default"
+              value="update"
+            />
+          </div>
         </div>
       </div>
-    </details>
+    </div>
   </div>
 
   <!-- Save Defaults Button -->

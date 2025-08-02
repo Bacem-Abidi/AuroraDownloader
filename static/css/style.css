@@ -670,3 +670,70 @@ details summary {
   background: rgba(255, 152, 0, 0.2);
   color: var(--warning);
 }
+
+.collapsible-container {
+  overflow: hidden;
+}
+
+.collapsible-header {
+  cursor: pointer;
+  font-weight: bold;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collapsible-content {
+  max-height: 0;
+  overflow: hidden;
+  transition:
+    max-height 0.4s ease,
+    padding 0.4s ease;
+  margin-top: 10px;
+}
+.arrow {
+  font-size: 10px;
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+.collapsible-container.open .arrow {
+  transform: rotate(90deg); /* Points down */
+}
+.collapsible-content.open .collapsible-content {
+  margin-top: 10px;
+  padding: 0px 10px;
+}
+
+.collapsible-container.open {
+  margin-bottom: 10px;
+}
+.defaults-panel.panel {
+  padding: 0px;
+}
+
+.defaults-panel {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-height 0.4s ease,
+    opacity 0.3s ease;
+}
+
+.defaults-panel.open {
+  max-height: 1000px; /* Adjust based on content height */
+  opacity: 1;
+  transition:
+    max-height 0.6s ease,
+    opacity 0.4s ease;
+}
+
+#defaults-chevron {
+  transition: transform 0.3s ease;
+}
+
+.defaults-toggle.active #defaults-chevron {
+  transform: rotate(180deg);
+}

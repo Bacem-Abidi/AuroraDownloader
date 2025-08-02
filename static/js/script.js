@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const mpdAdvancedSectionDefault = document.getElementById(
     "mpd-advanced-default",
   );
+
   // Advanced Panel Elements
   const defaultConfigToggle = document.getElementById("defaults-toggle");
   const defaultConfigPanel = document.getElementById("defaults-panel");
@@ -152,16 +153,39 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Toggle advanced panel
-  defaultConfigToggle.addEventListener("click", () => {
-    if (defaultConfigPanel.style.display === "none") {
-      defaultConfigPanel.style.display = "block";
-      defaultConfigChevron.className = "fas fa-chevron-up";
+  // defaultConfigToggle.addEventListener("click", () => {
+  //   if (defaultConfigPanel.style.display === "none") {
+  //     defaultConfigPanel.style.display = "block";
+  //     defaultConfigChevron.className = "fas fa-chevron-up";
+  //   } else {
+  //     defaultConfigPanel.style.display = "none";
+  //     defaultConfigChevron.className = "fas fa-chevron-down";
+  //   }
+  // });
+  defaultConfigToggle.addEventListener("click", function () {
+    const isOpening = !defaultConfigPanel.classList.contains("open");
+
+    // Toggle panel classes
+    defaultConfigPanel.classList.toggle("open");
+    defaultConfigToggle.classList.toggle("active");
+
+    // Handle height transition completion
+    if (isOpening) {
+      defaultConfigPanel.style.padding = "25px";
     } else {
-      defaultConfigPanel.style.display = "none";
-      defaultConfigChevron.className = "fas fa-chevron-down";
+      // Wait for close animation to finish before hiding
+      defaultConfigPanel.addEventListener(
+        "transitionend",
+        function handler() {
+          if (!defaultConfigPanel.classList.contains("open")) {
+            defaultConfigPanel.style.padding = "0px";
+          }
+          defaultConfigPanel.removeEventListener("transitionend", handler);
+        },
+        { once: true },
+      );
     }
   });
-
   // Save defaults button
   saveDefaultsBtn.addEventListener("click", savePreferences);
 
@@ -428,3 +452,17 @@ document.addEventListener("DOMContentLoaded", () => {
     addLog("[INFO] Logs cleared", "info");
   });
 });
+
+function toggleCollapse(header) {
+  const collapsible = header.parentElement;
+  const content = collapsible.querySelector(".collapsible-content");
+  const isOpen = collapsible.classList.contains("open");
+
+  if (isOpen) {
+    content.style.maxHeight = "0";
+    collapsible.classList.remove("open");
+  } else {
+    content.style.maxHeight = content.scrollHeight + "px";
+    collapsible.classList.add("open");
+  }
+}

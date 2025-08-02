@@ -96,36 +96,29 @@
         </div>
       </div>
     </div>
-    <details id="playlist-advanced" style="margin-bottom: 10px">
-      <summary>Playlist Path Options</summary>
-      <div class="option-group">
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" id="absolute-paths" />
-        <label class="form-check-label" for="absolute-paths">
-          Use absolute paths
-        </label>
+    <div class="collapsible-container" id="playlist-advanced">
+      <div class="collapsible-header" onclick="toggleCollapse(this)">
+        <span class="arrow">▶</span> Playlist Path Options
       </div>
+      <div class="collapsible-content">
+        <div class="option-group">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="absolute-paths" />
+            <label class="form-check-label" for="absolute-paths">Use absolute paths</label>
+          </div>
 
-      <div class="form-check">
-        <input
-          class="form-check-input"
-          type="checkbox"
-          id="relative-paths"
-        />
-        <label class="form-check-label" for="relative-paths">
-          Use relative paths
-        </label>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="relative-paths" />
+            <label class="form-check-label" for="relative-paths">Use relative paths</label>
+          </div>
+
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="filename-only" checked />
+            <label class="form-check-label" for="filename-only">Use only filenames</label>
+          </div>
+        </div>
       </div>
-
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" id="filename-only" checked/>
-        <label class="form-check-label" for="filename-only">
-          Use only filenames
-        </label>
-      </div>
-
     </div>
-    </details>
     <div class="option-group">
       <div class="form-check">
         <input class="form-check-input" type="checkbox" id="resume-download">
@@ -137,6 +130,8 @@
     </div>
     
   </div>
+
+
   <!-- MPD Integration -->
   <div class="mpd-options">
     <h3>
@@ -161,24 +156,28 @@
       </div>
     </div>
     <!-- Collapsible advanced options -->
-    <details id="mpd-advanced" style="display: none; margin-top: 15px">
-      <summary>Advanced Options</summary>
-      <div class="options-grid" style="margin-top: 10px">
-        <div class="option">
-          <label>MPC Path</label>
-          <input type="text" class="form-control" id="mpc-path" value="mpc" />
-        </div>
-        <div class="option">
-          <label>MPC Command</label>
-          <input
-            type="text"
-            class="form-control"
-            id="mpc-command"
-            value="update"
-          />
+    <div class="collapsible-container" id="mpd-advanced" style="display: none; margin-top: 15px; margin-bottom: 0px;">
+      <div class="collapsible-header" onclick="toggleCollapse(this)">
+        <span class="arrow">▶</span> Advanced Options
+      </div>
+      <div class="collapsible-content">
+         <div class="options-grid" style="margin-top: 10px">
+            <div class="option">
+              <label>MPC Path</label>
+              <input type="text" class="form-control" id="mpc-path" value="mpc" />
+            </div>
+            <div class="option">
+              <label>MPC Command</label>
+              <input
+                type="text"
+                class="form-control"
+                id="mpc-command"
+                value="update"
+              />
+            </div>
         </div>
       </div>
-    </details>
+    </div>
   </div>
   <div class="playlist-status" id="playlist-status">
     <div class="playlist-header">
