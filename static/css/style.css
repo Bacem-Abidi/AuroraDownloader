@@ -638,7 +638,6 @@ details summary {
   font-size: 1.1rem;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .history-artist {
@@ -668,7 +667,6 @@ details summary {
   margin-top: 5px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .header-actions {

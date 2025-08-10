@@ -143,7 +143,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         item.innerHTML = `
                     <div class="history-header">
-                        <div class="history-title">${entry.title}</div>
+                        <div class="history-title"><sapn style="word-break: break-word;">${entry.title}</sapn></div>
                         <div class="history-type">${icon} ${entry.type}</div>
                     </div>
                     <div class="history-artist">${entry.artist || "Unknown Artist"}</div>
@@ -156,7 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         </span>
                     </div>
                     <div class="history-path" title="${entry.file_path}">
-                        <i class="fas fa-folder"></i> ${truncatePath(entry.file_path)}
+                        <i class="fas fa-folder"></i> ${entry.file_path}
                     </div>
                 `;
         if (entry.status === "skipped") {
