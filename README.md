@@ -37,8 +37,8 @@ git clone https://github.com/Bacem-Abidi/AuroraDownloader.git
 # Navigate to project directory
 cd AuroraDownloader
 
-# iLoad Python virtual environment
-source venv/bin/activate
+# Download Dependencies
+pip install -r requirements.txt
 
 # Run the app
 flask --app app run
