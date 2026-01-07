@@ -11,11 +11,15 @@ from datetime import datetime
 from ytmusicapi import YTMusic
 from history import HistoryLogger
 from flask_bootstrap import Bootstrap5
+from mutagen import File as MutagenFile
 from downloader import download_manager
 from flask import Flask, render_template, request, jsonify, Response
 
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config')
 PREFS_FILE = os.path.join(CONFIG_DIR, 'preferences.json')
+AUDIO_EXTENSIONS = (".mp3", ".flac", ".wav", ".ogg", ".m4a")
+LIBRARY_CACHE = {}
+
 # progress_tracker = ProgressTracker(CONFIG_DIR)
 app = Flask(__name__)
 app.config["REDIS_URL"] = "redis://localhost"  # For production, use a real Redis server
@@ -180,6 +184,87 @@ def history_data():
         return jsonify(sorted_history)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+def get_audio_metadata(path):
+    try:
+        audio = MutagenFile(path, easy=True)
+        if not audio:
+            raise Exception("Unsupported format")
+
+        def tag(name):
+            return audio.get(name, [None])[0]
+
+        return {
+            "title": tag("title") or os.path.splitext(os.path.basename(path))[0],
+            "artist": tag("artist") or "Unknown Artist",
+            "album": tag("album") or "Unknown Album",
+            "track": tag("tracknumber"),
+            "year": tag("date") or tag("year"),
+            "format": os.path.splitext(path)[1][1:],
+        }
+
+    except Exception:
+        return {
+            "title": os.path.splitext(os.path.basename(path))[0],
+            "artist": "Unknown Artist",
+            "album": "Unknown Album",
+            "format": os.path.splitext(path)[1][1:],
+        }
+
+
+
+@app.route("/library", methods=["GET"])
+def library():
+    try:
+        audio_dir = request.args.get("dir")
+        offset = int(request.args.get("offset", 0))
+        limit = int(request.args.get("limit", 30))
+
+        if not audio_dir:
+            return jsonify({"error": "Missing audio directory"}), 400
+
+        audio_dir = os.path.expanduser(os.path.expandvars(audio_dir))
+
+        if not os.path.isdir(audio_dir):
+            return jsonify({"error": "Invalid audio directory"}), 400
+
+        # 🔹 Scan once and cache
+        if audio_dir not in LIBRARY_CACHE:
+            files = []
+            for root, _, filenames in os.walk(audio_dir):
+                for f in filenames:
+                    if f.lower().endswith(AUDIO_EXTENSIONS):
+                        files.append(os.path.join(root, f))
+
+            LIBRARY_CACHE[audio_dir] = files
+
+        all_files = LIBRARY_CACHE[audio_dir]
+        slice_files = all_files[offset: offset + limit]
+
+        items = []
+        for path in slice_files:
+            meta = get_audio_metadata(path)
+            items.append({
+                **meta,
+                "filename": os.path.basename(path),
+                "path": path,
+                "quality": "—",
+                "type": "local",
+            })
+
+        return jsonify({
+            "items": items,
+            "offset": offset,
+            "limit": limit,
+            "total": len(all_files),
+            "hasMore": offset + limit < len(all_files),
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

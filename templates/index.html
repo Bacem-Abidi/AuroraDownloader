@@ -30,8 +30,8 @@ styles %} {{ super() }}
   </header>
   <div class="main-content">
    
-    {% block downloader %}
-      {% include "download_panel.html" %}
+    {% block main %}
+      {% include "main_panel.html" %}
     {% endblock %}
 
 
@@ -47,9 +47,14 @@ styles %} {{ super() }}
       {% include "history_panel.html" %}
     {% endblock %}
   </div>
+  {% block modals %}
+    {% include "modals.html" %}
+  {% endblock %}
 </div>
 
 {% endblock %} {% block scripts %} {{ super() }}
 <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tabs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/library.js') }}"></script>
 <script src="{{ url_for('static', filename='js/history.js') }}"></script>
 {% endblock %}

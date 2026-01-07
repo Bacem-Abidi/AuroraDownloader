@@ -163,7 +163,8 @@ input:focus {
 }
 
 .option select,
-.history-controls select {
+.history-controls select,
+.input-group select{
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -780,3 +781,273 @@ details summary {
 .defaults-toggle.active #defaults-chevron {
   transform: rotate(180deg);
 }
+
+
+/* Tabs container */
+.tabs {
+  display: flex;
+  border-bottom: 2px solid var(--bg-secondary);
+  margin-bottom: 20px;
+}
+
+/* Tab buttons */
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 12px 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.tab-btn i {
+  margin-right: 6px;
+}
+
+/* Hover */
+.tab-btn:hover {
+  color: var(--text);
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Active tab */
+.tab-btn.active {
+  color: var(--highlight);
+  border-bottom-color: var(--highlight);
+}
+
+/* Tab content */
+.tab-content {
+  width: 100%;
+}
+
+/* Disabled tab */
+.tab-btn.disabled {
+  color: var(--text-secondary);
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+  border-bottom-color: transparent;
+}
+
+/* Optional subtle lock indicator */
+.tab-btn.disabled::after {
+  content: " 🔒";
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+/* Individual pane */
+.tab-pane {
+  display: none;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.tab-pane.active {
+  display: block;
+}
+
+/* Smooth fade */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reuse history style for library */
+.library-item {
+  cursor: pointer;
+}
+
+/* Optional highlight for management */
+.library-item:hover {
+  background: rgba(31, 197, 197, 0.1);
+}
+
+.library-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.actions-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.library-item:hover .actions-btn {
+  opacity: 1;
+}
+
+.actions-btn:hover {
+  background: rgba(31, 197, 197, 0.15);
+  color: var(--highlight);
+}
+
+.actions-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 6px;
+  min-width: 160px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  display: none;
+  z-index: 50;
+}
+
+.library-actions:hover .actions-menu {
+  display: block;
+}
+
+.actions-menu button {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.actions-menu button i {
+  margin-right: 8px;
+  color: var(--highlight);
+}
+
+.actions-menu button:hover {
+  background: rgba(31, 197, 197, 0.15);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 17, 26, 0.7);
+  backdrop-filter: blur(3px);
+  z-index: 999;
+}
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 420px;
+  max-width: calc(100% - 30px);
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  animation: modalIn 0.2s ease;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -45%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--highlight);
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.modal-close:hover {
+  color: var(--danger);
+}
+
+.modal-content {
+  padding: 18px;
+}
+
+.info-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.info-label {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.info-value {
+  color: var(--text);
+  word-break: break-word;
+}
+
+.info-value.mono {
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.hidden {
+  display: none;
+}
+@keyframes modalOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -45%);
+  }
+}
+
+@keyframes overlayOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.modal.closing {
+  animation: modalOut 0.18s ease forwards;
+}
+
+.modal-overlay.closing {
+  animation: overlayOut 0.18s ease forwards;
+}
+

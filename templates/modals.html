@@ -1,0 +1,44 @@
+{% block modals %}
+<div id="modal-overlay" class="modal-overlay hidden"></div>
+
+<div id="info-modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-header">
+    <h3>Track Information</h3>
+    <button class="modal-close" aria-label="Close">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+
+  <div class="modal-content">
+    <div class="info-row">
+      <span class="info-label">Title</span>
+      <span class="info-value" id="info-title"></span>
+    </div>
+
+    <div class="info-row">
+      <span class="info-label">Artist</span>
+      <span class="info-value" id="info-artist"></span>
+    </div>
+
+    <div class="info-row">
+      <span class="info-label">Album</span>
+      <span class="info-value" id="info-album"></span>
+    </div>
+
+    <div class="info-row">
+      <span class="info-label">Year</span>
+      <span class="info-value" id="info-year"></span>
+    </div>
+
+    <div class="info-row">
+      <span class="info-label">Format</span>
+      <span class="info-value" id="info-format"></span>
+    </div>
+
+    <div class="info-row">
+      <span class="info-label">Path</span>
+      <span class="info-value mono" id="info-path"></span>
+    </div>
+  </div>
+</div>
+{% endblock %}

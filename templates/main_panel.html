@@ -1,0 +1,32 @@
+{% block main %}
+<div class="panel">
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="download-tab">
+      <i class="fas fa-download"></i> Downloader
+    </button>
+    <button class="tab-btn" data-tab="management-tab" id="management-tab-btn">
+      <i class="fas fa-sliders-h"></i> Manager
+    </button>
+  </div>
+
+  <!-- Tab contents -->
+  <div class="tab-content">
+
+    {% block downloader %}
+    <div id="download-tab" class="tab-pane active">
+      {% include "download_tab.html" %}
+    </div>
+    {% endblock %}
+
+    {% block management %}
+    <div id="management-tab" class="tab-pane">
+      {% include "management_tab.html" %}
+    </div>
+    {% endblock %}
+
+  </div>
+
+</div>
+{% endblock %}

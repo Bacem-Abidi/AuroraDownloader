@@ -38,6 +38,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const defaultConfigChevron = document.getElementById("defaults-chevron");
   const saveDefaultsBtn = document.getElementById("save-defaults");
 
+  // Manger Tab
+  const managementTabBtn = document.getElementById("management-tab-btn");
+
+  function disableManagementTab() {
+    if (!managementTabBtn) return;
+    managementTabBtn.classList.add("disabled");
+  }
+
+  function enableManagementTab() {
+    if (!managementTabBtn) return;
+    managementTabBtn.classList.remove("disabled");
+  }
+
+
   // Load saved preferences
   async function loadPreferences() {
     try {
@@ -382,6 +396,9 @@ document.addEventListener("DOMContentLoaded", () => {
     downloadBtn.innerHTML =
       '<i class="fas fa-spinner fa-spin"></i> Downloading...';
 
+    // Disable management tab during download
+    disableManagementTab();
+
     // Clear any previous logs
     if (currentDownloadId) {
       closeEventSource();
@@ -431,6 +448,7 @@ document.addEventListener("DOMContentLoaded", () => {
       addLog(`[ERROR] ${error.message}`, "error");
       downloadBtn.disabled = false;
       downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download';
+      enableManagementTab();
     }
   });
 
@@ -481,6 +499,7 @@ document.addEventListener("DOMContentLoaded", () => {
         closeEventSource();
         downloadBtn.disabled = false;
         downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download';
+        enableManagementTab();
       } else {
         addLog(message);
       }
@@ -492,6 +511,7 @@ document.addEventListener("DOMContentLoaded", () => {
       closeEventSource();
       downloadBtn.disabled = false;
       downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download';
+      enableManagementTab();
     };
   }
 

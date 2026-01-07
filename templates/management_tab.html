@@ -1,0 +1,32 @@
+{% block management %}
+<!-- 🔽 FILE LIBRARY -->
+<div class="config-group">
+  <h3>Downloaded Files</h3>
+
+  <!-- Filters -->
+  <div class="input-group">
+      <input
+        type="text"
+        id="library-search"
+        class="form-control"
+        placeholder="Search title, artist, filename..."
+      />
+      <select id="library-filter" class="form-control">
+        <option value="all">All</option>
+        <option value="title">Title</option>
+        <option value="artist">Artist</option>
+        <option value="album">Album</option>
+        <option value="filename">Filename</option>
+      </select>
+    </div>
+
+
+  <!-- File list -->
+  <div class="history-container" id="library-container">
+    <div class="history-placeholder">
+      <i class="fas fa-music fa-3x"></i>
+      <p>Your downloaded files will appear here</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
