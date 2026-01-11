@@ -3,12 +3,71 @@ document.addEventListener("DOMContentLoaded", () => {
   const searchInput = document.getElementById("library-search");
   const filterSelect = document.getElementById("library-filter");
 
+  const playlistList = document.getElementById("playlist-list");
+  const libraryTitle = document.getElementById("library-title");
+  const libraryMeta = document.getElementById("library-meta");
+
   let library = [];
   let offset = 0;
   const limit = 25;
   let loading = false;
   let hasMore = true;
+  let currentSource = "all";
+  let playlistDir = null;
   let audioDir = null;
+
+  async function loadPlaylists() {
+    try {
+      const prefs = await (await fetch("/preferences")).json();
+      playlistDir = prefs.playlistDir;
+
+      const res = await fetch(
+        `/playlists?dir=${encodeURIComponent(playlistDir)}`,
+      );
+      const playlists = await res.json();
+
+      playlistList.innerHTML = "";
+
+      if (!playlists.length) {
+        playlistList.innerHTML = `<li class="sidebar-placeholder">No playlists</li>`;
+        return;
+      }
+
+      playlists.forEach((pl) => {
+        const li = document.createElement("li");
+        li.textContent = pl.name;
+        li.dataset.playlist = pl.name;
+        playlistList.appendChild(li);
+      });
+    } catch (e) {
+      playlistList.innerHTML = `<li class="sidebar-placeholder">Failed to load playlists</li>`;
+    }
+  }
+
+  function selectSource(source) {
+    currentSource = source;
+    libraryTitle.textContent = "All Music";
+
+    libraryMeta.textContent = "";
+    loadLibrary(true);
+  }
+
+  async function selectPlaylist(name) {
+    libraryTitle.textContent = name;
+    libraryMeta.textContent = "Playlist";
+
+    container.innerHTML = "";
+    offset = 0;
+    hasMore = false;
+
+    const res = await fetch(
+      `/playlist/${encodeURIComponent(name)}?audioDir=${encodeURIComponent(audioDir)}&playlistDir=${encodeURIComponent(playlistDir)}`,
+    );
+    const data = await res.json();
+
+    library = data.items;
+    renderLibrary(library, true);
+  }
 
   async function loadLibrary(reset = false) {
     if (searchInput.value.trim() !== "") return;
@@ -16,23 +75,23 @@ document.addEventListener("DOMContentLoaded", () => {
     if (loading || (!hasMore && !reset)) return;
 
     loading = true;
-  
+
     try {
       if (!audioDir) {
-      const prefs = await (await fetch("/preferences")).json();
-      audioDir = prefs.audioDir;
-    }
+        const prefs = await (await fetch("/preferences")).json();
+        audioDir = prefs.audioDir;
+      }
 
       if (reset) {
-      offset = 0;
-      hasMore = true;
-      library = [];
-      container.innerHTML = "";
-    }
+        offset = 0;
+        hasMore = true;
+        library = [];
+        container.innerHTML = "";
+      }
 
-    const res = await fetch(
-      `/library?dir=${encodeURIComponent(audioDir)}&offset=${offset}&limit=${limit}`
-    );
+      const res = await fetch(
+        `/library?dir=${encodeURIComponent(audioDir)}&offset=${offset}&limit=${limit}`,
+      );
 
       const data = await res.json();
 
@@ -116,7 +175,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${parts[0]}/.../${parts[parts.length - 1]}`;
   }
 
-
   function getFilteredLibrary() {
     const query = searchInput.value.toLowerCase().trim();
     const filter = filterSelect.value;
@@ -163,79 +221,93 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   loadLibrary(true);
+  loadPlaylists();
 
+  document.querySelectorAll(".sidebar-list").forEach((list) => {
+    list.addEventListener("click", (e) => {
+      const li = e.target.closest("li");
+      if (!li || li.classList.contains("sidebar-placeholder")) return;
 
-container.addEventListener("click", (e) => {
-  const btn = e.target.closest(".actions-menu button");
-  if (!btn) return;
+      document
+        .querySelectorAll(".sidebar-list li")
+        .forEach((el) => el.classList.remove("active"));
 
-  const item = btn.closest(".library-item");
-  const entry = JSON.parse(item.dataset.entry);
+      li.classList.add("active");
 
-  if (btn.dataset.action === "info") {
-    openInfoModal(entry);
+      if (li.dataset.source) {
+        selectSource(li.dataset.source);
+      }
+
+      if (li.dataset.playlist) {
+        selectPlaylist(li.dataset.playlist);
+      }
+    });
+  });
+
+  container.addEventListener("click", (e) => {
+    const btn = e.target.closest(".actions-menu button");
+    if (!btn) return;
+
+    const item = btn.closest(".library-item");
+    const entry = JSON.parse(item.dataset.entry);
+
+    if (btn.dataset.action === "info") {
+      openInfoModal(entry);
+    }
+  });
+
+  const infoModal = document.getElementById("info-modal");
+  const overlay = document.getElementById("modal-overlay");
+
+  const infoFields = {
+    title: document.getElementById("info-title"),
+    artist: document.getElementById("info-artist"),
+    album: document.getElementById("info-album"),
+    year: document.getElementById("info-year"),
+    format: document.getElementById("info-format"),
+    path: document.getElementById("info-path"),
+  };
+
+  function openInfoModal(entry) {
+    infoModal.classList.remove("hidden", "closing");
+    overlay.classList.remove("hidden", "closing");
+
+    infoFields.title.textContent = entry.title;
+    infoFields.artist.textContent = entry.artist || "Unknown";
+    infoFields.album.textContent = entry.album || "Unknown";
+    infoFields.year.textContent = entry.year || "";
+    infoFields.format.textContent = entry.format.toUpperCase();
+    infoFields.path.textContent = entry.path;
+
+    overlay.classList.remove("hidden");
+    infoModal.classList.remove("hidden");
   }
-});
 
+  function closeModal() {
+    infoModal.classList.add("closing");
+    overlay.classList.add("closing");
 
-const infoModal = document.getElementById("info-modal");
-const overlay = document.getElementById("modal-overlay");
+    infoModal.addEventListener(
+      "animationend",
+      () => {
+        infoModal.classList.remove("closing");
+        overlay.classList.remove("closing");
 
-const infoFields = {
-  title: document.getElementById("info-title"),
-  artist: document.getElementById("info-artist"),
-  album: document.getElementById("info-album"),
-  year: document.getElementById("info-year"),
-  format: document.getElementById("info-format"),
-  path: document.getElementById("info-path"),
-};
+        infoModal.classList.add("hidden");
+        overlay.classList.add("hidden");
+      },
+      { once: true },
+    );
+  }
 
-function openInfoModal(entry) {
-  infoModal.classList.remove("hidden", "closing");
-  overlay.classList.remove("hidden", "closing");
+  overlay.addEventListener("click", closeModal);
+  document.querySelector(".modal-close").addEventListener("click", closeModal);
 
-  infoFields.title.textContent = entry.title;
-  infoFields.artist.textContent = entry.artist || "Unknown";
-  infoFields.album.textContent = entry.album || "Unknown";
-  infoFields.year.textContent = entry.year || "";
-  infoFields.format.textContent = entry.format.toUpperCase();
-  infoFields.path.textContent = entry.path;
+  function openEditDialog(title, path) {
+    alert(`Edit metadata for:\n${title}`);
+  }
 
-  overlay.classList.remove("hidden");
-  infoModal.classList.remove("hidden");
-}
-
-
-function closeModal() {
-  infoModal.classList.add("closing");
-  overlay.classList.add("closing");
-
-  infoModal.addEventListener(
-    "animationend",
-    () => {
-      infoModal.classList.remove("closing");
-      overlay.classList.remove("closing");
-
-      infoModal.classList.add("hidden");
-      overlay.classList.add("hidden");
-    },
-    { once: true }
-  );
-}
-
-
-overlay.addEventListener("click", closeModal);
-document
-  .querySelector(".modal-close")
-  .addEventListener("click", closeModal);
-
-
-
-function openEditDialog(title, path) {
-  alert(`Edit metadata for:\n${title}`);
-}
-
-function moveFile(path) {
-  alert(`Move file:\n${path}`);
-}
+  function moveFile(path) {
+    alert(`Move file:\n${path}`);
+  }
 });

@@ -164,7 +164,7 @@ input:focus {
 
 .option select,
 .history-controls select,
-.input-group select{
+.input-group select {
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -782,7 +782,6 @@ details summary {
   transform: rotate(180deg);
 }
 
-
 /* Tabs container */
 .tabs {
   display: flex;
@@ -877,6 +876,71 @@ details summary {
   display: flex;
   align-items: center;
 }
+.library-layout {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  display: flex;
+  height: 100%;
+}
+
+.library-sidebar {
+  width: 240px;
+  background: rgba(0, 0, 0, 0.1);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px 0px 0px 10px;
+  padding-top: 20px;
+  padding-left: 15px;
+}
+
+.library-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-section {
+  margin-bottom: 20px;
+}
+
+.sidebar-section h4 {
+  font-size: 12px;
+  text-transform: uppercase;
+  opacity: 0.7;
+  display: flex;
+  justify-content: space-between;
+}
+
+.sidebar-list {
+  list-style: none;
+  padding: 0;
+  margin: 5px 0;
+}
+
+.sidebar-list li {
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.sidebar-list li.active {
+  background: rgba(31, 197, 197, 0.1);
+}
+
+.sidebar-list li:hover {
+  background: rgba(31, 197, 197, 0.2);
+}
+
+.library-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #222;
+}
+
+.library-header h3 {
+  margin: 0;
+}
 
 .actions-btn {
   background: transparent;
@@ -885,8 +949,10 @@ details summary {
   cursor: pointer;
   padding: 6px;
   border-radius: 6px;
-  opacity: 0;
-  transition: opacity 0.2s, background 0.2s;
+  opacity: 1;
+  transition:
+    opacity 0.2s,
+    background 0.2s;
 }
 
 .library-item:hover .actions-btn {
@@ -905,10 +971,10 @@ details summary {
   background: var(--bg-secondary);
   border-radius: 8px;
   padding: 6px;
-  min-width: 160px;
+  min-width: 178px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
   display: none;
-  z-index: 50;
+  z-index: 999;
 }
 
 .library-actions:hover .actions-menu {
@@ -1050,4 +1116,3 @@ details summary {
 .modal-overlay.closing {
   animation: overlayOut 0.18s ease forwards;
 }
-
