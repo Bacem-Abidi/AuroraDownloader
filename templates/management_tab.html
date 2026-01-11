@@ -13,7 +13,7 @@
     <div class="sidebar-section">
       <h4>
         Playlists
-        <button class="icon-btn" id="create-playlist" title="New playlist">+</button>
+        <!-- <button class="icon-btn" id="create-playlist" title="New playlist">+</button> -->
       </h4>
       <ul class="sidebar-list" id="playlist-list">
         <li class="sidebar-placeholder">Loading playlists…</li>
@@ -51,10 +51,24 @@
     </div>
 
     <!-- Music list -->
-    <div class="history-container" id="library-container">
-      <div class="history-placeholder">
-        <i class="fas fa-music fa-3x"></i>
-        <p>Select a playlist or source</p>
+    <div class="history-container library-table" 
+      id="library-container"
+      style="height: 100%; overflow-y:hidden;padding: 0px;border-radius:0px 0px 10px 0px !important;">
+
+      <div class="library-row library-header-row">
+        <div class="col-icon">♪</div>
+        <div class="col-title">Title</div>
+        <div class="col-artist">Artist</div>
+        <div class="col-album">Album</div>
+        <div class="col-duration">⏱</div>
+        <div class="col-actions"></div>
+      </div>
+
+      <div class="library-body" id="library-body">
+        <div class="history-placeholder">
+          <i class="fas fa-music fa-3x"></i>
+          <p>There are No songs Available</p>
+        </div>
       </div>
     </div>
 

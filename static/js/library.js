@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const container = document.getElementById("library-container");
+  const container = document.getElementById("library-body");
   const searchInput = document.getElementById("library-search");
   const filterSelect = document.getElementById("library-filter");
 
@@ -15,6 +15,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentSource = "all";
   let playlistDir = null;
   let audioDir = null;
+  let mode = "library"; // "library" | "playlist"
+  let currentPlaylist = null;
+  let totalCount = 0;
 
   async function loadPlaylists() {
     try {
@@ -35,7 +38,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       playlists.forEach((pl) => {
         const li = document.createElement("li");
-        li.textContent = pl.name;
+        li.textContent = pl.name.replace(/\.m3u$/i, "");
         li.dataset.playlist = pl.name;
         playlistList.appendChild(li);
       });
@@ -45,28 +48,60 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function selectSource(source) {
+    mode = "library";
+    currentPlaylist = null;
+
     currentSource = source;
     libraryTitle.textContent = "All Music";
-
     libraryMeta.textContent = "";
+
     loadLibrary(true);
   }
 
   async function selectPlaylist(name) {
-    libraryTitle.textContent = name;
+    mode = "playlist";
+    currentPlaylist = name;
+
+    libraryTitle.textContent = name.replace(/\.m3u$/i, "");
     libraryMeta.textContent = "Playlist";
 
-    container.innerHTML = "";
     offset = 0;
-    hasMore = false;
+    hasMore = true;
+    loading = false;
+    library = [];
+    container.innerHTML = "";
 
-    const res = await fetch(
-      `/playlist/${encodeURIComponent(name)}?audioDir=${encodeURIComponent(audioDir)}&playlistDir=${encodeURIComponent(playlistDir)}`,
-    );
-    const data = await res.json();
+    loadPlaylistPage(true);
+  }
 
-    library = data.items;
-    renderLibrary(library, true);
+  async function loadPlaylistPage(reset = false) {
+    if (loading || (!hasMore && !reset)) return;
+
+    loading = true;
+
+    try {
+      const res = await fetch(
+        `/playlist/${encodeURIComponent(currentPlaylist)}?` +
+          `audioDir=${encodeURIComponent(audioDir)}` +
+          `&playlistDir=${encodeURIComponent(playlistDir)}` +
+          `&offset=${offset}&limit=${limit}`,
+      );
+
+      const data = await res.json();
+
+      hasMore = data.hasMore;
+      offset += limit;
+      library.push(...data.items);
+
+      totalCount = data.total;
+      libraryMeta.textContent = `${library.length} / ${totalCount} tracks`;
+
+      renderLibrary(data.items);
+    } catch (e) {
+      console.error("Error loading playlist:", e);
+    } finally {
+      loading = false;
+    }
   }
 
   async function loadLibrary(reset = false) {
@@ -99,6 +134,9 @@ document.addEventListener("DOMContentLoaded", () => {
       offset += limit;
       library.push(...data.items);
 
+      totalCount = data.total;
+      libraryMeta.textContent = `${library.length} / ${totalCount} tracks`;
+
       renderLibrary(data.items);
     } catch (error) {
       console.error("Error loading library:", error);
@@ -113,58 +151,116 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function renderLibrary(items, clear = false) {
-    if (clear) container.innerHTML = "";
+  // function renderLibrary(items, clear = false) {
+  //   if (clear) container.innerHTML = "";
+  //
+  //   if (!items.length) {
+  //     container.innerHTML = `
+  //       <div class="history-placeholder">
+  //         <i class="fas fa-music fa-3x"></i>
+  //         <p>No matching files found</p>
+  //       </div>
+  //     `;
+  //     return;
+  //   }
+  //
+  //   items.forEach((entry) => {
+  //     const item = document.createElement("div");
+  //     item.className = "history-item library-item";
+  //
+  //     item.innerHTML = `
+  //       <div class="history-header">
+  //         <div class="history-title">${entry.title}</div>
+  //         <div class="library-actions">
+  //     <button class="actions-btn" aria-label="Actions">
+  //       <i class="fas fa-ellipsis-v"></i>
+  //     </button>
+  //
+  //     <div class="actions-menu">
+  //       <button data-action="info">
+  //         <i class="fas fa-info-circle"></i> Info
+  //       </button>
+  //       <button data-action="edit">
+  //         <i class="fas fa-pen"></i> Edit
+  //       </button>
+  //       <button data-action="move">
+  //         <i class="fas fa-folder-open"></i> Move location
+  //       </button>
+  //     </div>
+  //   </div>
+  // </div>
+  //       </div>
+  //       <div class="history-artist">${entry.artist}</div>
+  //       <div class="history-meta">
+  //         <span>${entry.album}</span>
+  //         <span>${entry.year || ""}</span>
+  //       </div>
+  //       <div class="history-path">
+  //         <i class="fas fa-folder"></i> ${entry.path}
+  //       </div>
+  //     `;
+  //
+  //     item.dataset.entry = JSON.stringify(entry);
+  //
+  //     container.appendChild(item);
+  //   });
+  // }
 
-    if (!items.length) {
-      container.innerHTML = `
-        <div class="history-placeholder">
-          <i class="fas fa-music fa-3x"></i>
-          <p>No matching files found</p>
-        </div>
-      `;
+  function renderLibrary(items, clear = false) {
+    if (clear) {
+      container
+        .querySelectorAll(".library-item-row")
+        .forEach((n) => n.remove());
+    }
+
+    if (!items.length && clear) {
+      container.innerHTML += `
+      <div class="history-placeholder">
+        <i class="fas fa-music fa-3x"></i>
+        <p>No matching files found</p>
+      </div>
+    `;
       return;
     }
 
     items.forEach((entry) => {
-      const item = document.createElement("div");
-      item.className = "history-item library-item";
+      const row = document.createElement("div");
+      row.className = "library-row library-item-row";
 
-      item.innerHTML = `
-        <div class="history-header">
-          <div class="history-title">${entry.title}</div>
-          <div class="library-actions">
-      <button class="actions-btn" aria-label="Actions">
-        <i class="fas fa-ellipsis-v"></i>
-      </button>
+      const artwork = entry.hasArtwork
+        ? `<img class="track-artwork"
+          src="/artwork?path=${encodeURIComponent(entry.path)}"
+          loading="lazy"
+          onerror="this.replaceWith(document.createTextNode('▶'))">`
+        : "▶";
 
-      <div class="actions-menu">
-        <button data-action="info">
-          <i class="fas fa-info-circle"></i> Info
+      row.innerHTML = `
+      <div class="col-icon">${artwork}</div>
+      <div class="col-title">${entry.title || entry.filename}</div>
+      <div class="col-artist">${entry.artist || "—"}</div>
+      <div class="col-album">${entry.album || "—"}</div>
+      <div class="col-duration">${entry.duration || "—"}</div>
+      <div class="col-actions">
+        <button class="actions-btn" aria-label="Actions">
+          <i class="fas fa-ellipsis-v"></i>
         </button>
-        <button data-action="edit">
-          <i class="fas fa-pen"></i> Edit
-        </button>
-        <button data-action="move">
-          <i class="fas fa-folder-open"></i> Move location
-        </button>
+
+        <div class="actions-menu">
+          <button data-action="info">
+            <i class="fas fa-info-circle"></i> Info
+          </button>
+          <button data-action="edit">
+            <i class="fas fa-pen"></i> Edit
+          </button>
+          <button data-action="move">
+            <i class="fas fa-folder-open"></i> Move location
+          </button>
+        </div>
       </div>
-    </div>
-  </div>
-        </div>
-        <div class="history-artist">${entry.artist}</div>
-        <div class="history-meta">
-          <span>${entry.album}</span>
-          <span>${entry.year || ""}</span>
-        </div>
-        <div class="history-path">
-          <i class="fas fa-folder"></i> ${entry.path}
-        </div>
-      `;
+    `;
 
-      item.dataset.entry = JSON.stringify(entry);
-
-      container.appendChild(item);
+      row.dataset.entry = JSON.stringify(entry);
+      container.appendChild(row);
     });
   }
 
@@ -211,12 +307,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   searchInput.addEventListener("input", applyFilters);
   filterSelect.addEventListener("change", applyFilters);
+
   container.addEventListener("scroll", () => {
     if (
       container.scrollTop + container.clientHeight >=
       container.scrollHeight - 50
     ) {
-      loadLibrary();
+      if (mode === "library") {
+        loadLibrary();
+      } else if (mode === "playlist") {
+        loadPlaylistPage();
+      }
     }
   });
 

@@ -4,16 +4,21 @@ import time
 import uuid
 import glob
 import json
+import base64
 import posixpath
 from pathlib import Path
 from flask_sse import sse
+from mutagen.mp4 import MP4
+from mutagen.flac import FLAC
 from datetime import datetime
 from ytmusicapi import YTMusic
+from mutagen.id3 import ID3, APIC
 from history import HistoryLogger
 from flask_bootstrap import Bootstrap5
 from mutagen import File as MutagenFile
 from downloader import download_manager
 from flask import Flask, render_template, request, jsonify, Response
+
 
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
 PREFS_FILE = os.path.join(CONFIG_DIR, "preferences.json")
@@ -194,14 +199,45 @@ def history_data():
         return jsonify({"error": str(e)}), 500
 
 
+def format_duration(seconds):
+    if not seconds:
+        return None
+    m, s = divmod(int(seconds), 60)
+    return f"{m}:{s:02d}"
+
+
 def get_audio_metadata(path):
     try:
         audio = MutagenFile(path, easy=True)
         if not audio:
             raise Exception("Unsupported format")
 
+        duration = None
+        try:
+            duration = int(audio.info.length)
+        except Exception:
+            pass
+
         def tag(name):
             return audio.get(name, [None])[0]
+
+        has_artwork = False
+
+        # MP3 (ID3)
+        if path.lower().endswith(".mp3"):
+            try:
+                id3 = ID3(path)
+                has_artwork = bool(id3.getall("APIC"))
+            except Exception:
+                pass
+
+        # MP4 / M4A
+        elif isinstance(audio, MP4):
+            has_artwork = "covr" in audio.tags
+
+        # FLAC
+        elif isinstance(audio, FLAC):
+            has_artwork = bool(audio.pictures)
 
         return {
             "title": tag("title") or os.path.splitext(os.path.basename(path))[0],
@@ -210,6 +246,8 @@ def get_audio_metadata(path):
             "track": tag("tracknumber"),
             "year": tag("date") or tag("year"),
             "format": os.path.splitext(path)[1][1:],
+            "duration": format_duration(duration),
+            "hasArtwork": has_artwork,
         }
 
     except Exception:
@@ -218,7 +256,38 @@ def get_audio_metadata(path):
             "artist": "Unknown Artist",
             "album": "Unknown Album",
             "format": os.path.splitext(path)[1][1:],
+            "duration": "00:00",
+            "hasArtwork": False,
         }
+
+
+@app.route("/artwork")
+def artwork():
+    path = request.args.get("path")
+    if not path or not os.path.isfile(path):
+        return "", 404
+
+    audio = MutagenFile(path)
+
+    image = None
+    mime = "image/jpeg"
+
+    # MP3
+    if audio and audio.tags and hasattr(audio.tags, "getall"):
+        apic = audio.tags.getall("APIC")
+        if apic:
+            image = apic[0].data
+            mime = apic[0].mime
+
+    # MP4 / M4A
+    if isinstance(audio, MP4) and "covr" in audio.tags:
+        image = audio.tags["covr"][0]
+        mime = "image/png" if image.imageformat == image.FORMAT_PNG else "image/jpeg"
+
+    if not image:
+        return "", 404
+
+    return Response(image, mimetype=mime)
 
 
 @app.route("/playlists", methods=["GET"])
@@ -269,41 +338,49 @@ def load_playlist(name):
     try:
         audio_dir = request.args.get("audioDir")
         playlist_dir = request.args.get("playlistDir")
+        offset = int(request.args.get("offset", 0))
+        limit = int(request.args.get("limit", 30))
 
         playlist_dir = os.path.expanduser(os.path.expandvars(playlist_dir))
         audio_dir = os.path.expanduser(os.path.expandvars(audio_dir))
 
         playlist_path = os.path.join(playlist_dir, name)
-
         if not os.path.isfile(playlist_path):
             return jsonify({"error": "Playlist not found"}), 404
 
-        items = []
         playlist_base_dir = os.path.dirname(playlist_path)
+        resolved_paths = []
 
+        # Resolve all entries first
         with open(playlist_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 resolved = resolve_playlist_entry(line, playlist_base_dir, audio_dir)
+                if resolved:
+                    resolved_paths.append(resolved)
 
-                if not resolved:
-                    continue
+        total = len(resolved_paths)
+        slice_paths = resolved_paths[offset : offset + limit]
 
-                meta = get_audio_metadata(resolved)
-
-                items.append(
-                    {
-                        **meta,
-                        "filename": os.path.basename(resolved),
-                        "path": resolved,
-                        "type": "playlist",
-                    }
-                )
+        items = []
+        for path in slice_paths:
+            meta = get_audio_metadata(path)
+            items.append(
+                {
+                    **meta,
+                    "filename": os.path.basename(path),
+                    "path": path,
+                    "type": "playlist",
+                }
+            )
 
         return jsonify(
             {
                 "name": name,
-                "count": len(items),
                 "items": items,
+                "offset": offset,
+                "limit": limit,
+                "total": total,
+                "hasMore": offset + limit < total,
             }
         )
 
