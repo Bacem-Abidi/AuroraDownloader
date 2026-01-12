@@ -113,6 +113,10 @@ def start_download():
     history_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history")
     os.makedirs(history_dir, exist_ok=True)
 
+    fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
+    os.makedirs(fail_dir, exist_ok=True)
+
+
     if not url:
         return jsonify({"error": "URL is required"}), 400
 
@@ -131,6 +135,7 @@ def start_download():
         playlist_options=playlist_options,
         mpd_options=mpd_options,
         history_dir=history_dir,
+        fail_dir=fail_dir,
         overwrite=overwrite,
         resume=resume,
         config_dir=CONFIG_DIR,

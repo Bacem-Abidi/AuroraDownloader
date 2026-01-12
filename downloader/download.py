@@ -15,6 +15,7 @@ from .playlist import PlaylistManager
 from .thumbnail import ThumbnailManager
 from .mpd_manager import MPDManager
 from history import HistoryLogger
+from fail import FailLogger
 from progress_tracker import ProgressTracker
 from .utils import get_extension, get_quality_setting 
 from collections import defaultdict
@@ -27,6 +28,7 @@ class DownloadManager:
         self.active_downloads = {}
         self.lock = threading.Lock()
         self.history_logger = None
+        self.fail_logger = None
         self.custom_temp_dir = "temp"
         os.makedirs(self.custom_temp_dir, exist_ok=True)
         config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config')
@@ -41,7 +43,7 @@ class DownloadManager:
 
     def start_download(self, url, download_id, quality='best', codec='mp3', 
                       audio_dir="Downloads", lyrics_dir="Lyrics", playlist_dir="Playlists",
-                      playlist_options=None, mpd_options=None, history_dir=None, overwrite=False, resume=False, config_dir=None):
+                      playlist_options=None, mpd_options=None, history_dir=None, fail_dir=None,overwrite=False, resume=False, config_dir=None):
         """Start a download process in a separate thread"""
         if download_id in self.active_downloads:
             return
@@ -55,6 +57,9 @@ class DownloadManager:
 
         if history_dir:
             self.history_logger = HistoryLogger(history_dir)
+
+        if fail_dir:
+            self.fail_logger = FailLogger(fail_dir)
 
         # Create a new queue for this download
         log_queue = Queue()
@@ -164,7 +169,7 @@ class DownloadManager:
                         lyrics_dir,
                         is_playlist,
                         overwrite,
-                        playlist_title
+                        playlist_title,
                     )
                     
                     if video_file:
@@ -178,6 +183,15 @@ class DownloadManager:
                         
                         log_queue.put(f"[PLAYLIST] Completed video {i+1}/{len(playlist_entries)}")
                     else:
+                        self._log_fail(
+                            is_playlist,
+                            playlist_title,
+                            i+1,
+                            video_url,
+                            quality,
+                            codec,
+                            "Failed (didn't download for some reason)"
+                        )
                         log_queue.put(f"[WARNING] Failed to download video {i+1}")
 
                 # Create M3U playlist file
@@ -331,9 +345,29 @@ class DownloadManager:
                     'downloaded'
                 )
                 
+            else:
+                self._log_fail(
+                    is_playlist,
+                    playlist_title,
+                    None,
+                    url,
+                    quality,
+                    codec,
+                    "Failed (didn't download for some reason)"
+                )
+                
             return output_file
 
         except Exception as e:
+            self._log_fail(
+                    is_playlist,
+                    playlist_title,
+                    None,
+                    url,
+                    quality,
+                    codec,
+                    "[ERROR] Download failed: " + str(e),
+                )
             log_queue.put(f"[ERROR] Download failed: {str(e)}")
             return None
         finally:
@@ -444,6 +478,25 @@ class DownloadManager:
         }
         
         self.history_logger.log_download(history_entry)
+
+    def _log_fail(self, is_playlist, playlist_title, index,  url, 
+                     quality, codec, status):
+        """Create Fail log entry"""
+        if not self.fail_logger:
+            return
+        
+        fail_entry = {
+            'type': 'playlist' if is_playlist else 'single',
+            'playlist_title': playlist_title if is_playlist else 'No Playlist',
+            'index': index,
+            'url': url,
+            'timestamp': datetime.now().isoformat(),
+            'quality': quality,
+            'format': codec,
+            'status': status
+        }
+        
+        self.fail_logger.log_fail(fail_entry)
 
 
     def get_logs(self, download_id):
