@@ -995,6 +995,8 @@ details summary {
 
 .col-actions {
   text-align: center;
+  position: relative;
+  display: flex;
 }
 
 .col-icon {
@@ -1150,11 +1152,53 @@ details summary {
   padding: 18px;
 }
 
+
+.info-media {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 16px;
+  align-items: center;
+  flex-direction: column;
+}
+
+.info-artwork {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  margin-top: 10px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.info-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.info-meta h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.info-meta p {
+  margin: 2px 0 4px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.info-duration {
+  font-size: 1rem;
+  color: var(--highlight);
+}
+
+
 .info-row {
   display: grid;
   grid-template-columns: 90px 1fr;
   gap: 10px;
   margin-bottom: 12px;
+  align-items: center;
 }
 
 .info-label {

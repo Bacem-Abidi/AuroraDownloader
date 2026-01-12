@@ -208,9 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderLibrary(items, clear = false) {
     if (clear) {
-      container
-        .querySelectorAll(".library-item-row")
-        .forEach((n) => n.remove());
+      container.innerHTML = "";
     }
 
     if (!items.length && clear) {
@@ -349,7 +347,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const btn = e.target.closest(".actions-menu button");
     if (!btn) return;
 
-    const item = btn.closest(".library-item");
+    const item = btn.closest(".library-row");
     const entry = JSON.parse(item.dataset.entry);
 
     if (btn.dataset.action === "info") {
@@ -373,15 +371,30 @@ document.addEventListener("DOMContentLoaded", () => {
     infoModal.classList.remove("hidden", "closing");
     overlay.classList.remove("hidden", "closing");
 
-    infoFields.title.textContent = entry.title;
-    infoFields.artist.textContent = entry.artist || "Unknown";
+    // Artwork
+    const artworkEl = document.getElementById("info-artwork");
+    if (entry.hasArtwork) {
+      artworkEl.src = `/artwork?path=${encodeURIComponent(entry.path)}`;
+      artworkEl.style.display = "block";
+    } else {
+      artworkEl.style.display = "none";
+    }
+
+    // Header info
+    document.getElementById("info-title").textContent =
+      entry.title || entry.filename;
+
+    document.getElementById("info-artist").textContent =
+      entry.artist || "Unknown";
+
+    document.getElementById("info-duration").textContent =
+      entry.duration || "—";
+
+    // Details
     infoFields.album.textContent = entry.album || "Unknown";
     infoFields.year.textContent = entry.year || "";
     infoFields.format.textContent = entry.format.toUpperCase();
     infoFields.path.textContent = entry.path;
-
-    overlay.classList.remove("hidden");
-    infoModal.classList.remove("hidden");
   }
 
   function closeModal() {
