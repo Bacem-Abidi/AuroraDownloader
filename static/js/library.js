@@ -7,6 +7,31 @@ document.addEventListener("DOMContentLoaded", () => {
   const libraryTitle = document.getElementById("library-title");
   const libraryMeta = document.getElementById("library-meta");
 
+  const header = document.getElementById("library-row-header");
+
+  const HEADERS = {
+    all: `
+      <div class="col-icon">♪</div>
+      <div class="col-title">Title</div>
+      <div class="col-artist">Artist</div>
+      <div class="col-album">Album</div>
+      <div class="col-duration">⏱</div>
+      <div class="col-actions"></div>
+    `,
+
+    failed: `
+      <div class="col-icon">⚠</div>
+      <div class="col-url">URL</div>
+      <div class="col-vidId">video ID</div>
+      <div class="col-format">Format</div>
+      <div class="col-quality">Quality</div>
+      <div class="col-type">Type</div>
+      <div class="col-playlist">Playlist</div>
+      <div class="col-index">Index</div>
+      <div class="col-actions"></div>
+    `
+  };
+
   let library = [];
   let offset = 0;
   const limit = 25;
@@ -18,6 +43,15 @@ document.addEventListener("DOMContentLoaded", () => {
   let mode = "library"; // "library" | "playlist"
   let currentPlaylist = null;
   let totalCount = 0;
+
+
+  function updateGridMode(source) {
+    const header = document.getElementById("library-row-header");
+
+    header.classList.toggle("is-library", source !== "failed");
+    header.classList.toggle("is-failed", source === "failed");
+  }
+
 
   async function loadPlaylists() {
     try {
@@ -52,15 +86,30 @@ document.addEventListener("DOMContentLoaded", () => {
     currentPlaylist = null;
 
     currentSource = source;
-    libraryTitle.textContent = "All Music";
-    libraryMeta.textContent = "";
 
-    loadLibrary(true);
+    updateGridMode(currentSource);
+
+    if(source == "all") {
+      libraryTitle.textContent = "All Music";
+      libraryMeta.textContent = "";
+      header.innerHTML = HEADERS.all;
+    } else {
+      libraryTitle.textContent = "Failed Downloads";
+      libraryMeta.textContent = "";
+      header.innerHTML = HEADERS.failed;
+    }
+
+    loadLibrary(true, source);
   }
 
   async function selectPlaylist(name) {
     mode = "playlist";
     currentPlaylist = name;
+
+    currentSource = "playlist";
+
+    updateGridMode(currentSource);
+
 
     libraryTitle.textContent = name.replace(/\.m3u$/i, "");
     libraryMeta.textContent = "Playlist";
@@ -70,6 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loading = false;
     library = [];
     container.innerHTML = "";
+    header.innerHTML = HEADERS.all;
 
     loadPlaylistPage(true);
   }
@@ -104,7 +154,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  async function loadLibrary(reset = false) {
+  async function loadLibrary(reset = false, source = "all") {
     if (searchInput.value.trim() !== "") return;
 
     if (loading || (!hasMore && !reset)) return;
@@ -112,11 +162,6 @@ document.addEventListener("DOMContentLoaded", () => {
     loading = true;
 
     try {
-      if (!audioDir) {
-        const prefs = await (await fetch("/preferences")).json();
-        audioDir = prefs.audioDir;
-      }
-
       if (reset) {
         offset = 0;
         hasMore = true;
@@ -124,9 +169,19 @@ document.addEventListener("DOMContentLoaded", () => {
         container.innerHTML = "";
       }
 
-      const res = await fetch(
-        `/library?dir=${encodeURIComponent(audioDir)}&offset=${offset}&limit=${limit}`,
-      );
+      let endpoint;
+
+      if (source === "failed") {
+        endpoint = `/failed?offset=${offset}&limit=${limit}`;
+      } else {
+        if (!audioDir) {
+          const prefs = await (await fetch("/preferences")).json();
+          audioDir = prefs.audioDir;
+        }
+        endpoint = `/library?dir=${encodeURIComponent(audioDir)}&offset=${offset}&limit=${limit}`;
+      }
+
+      const res = await fetch(endpoint);
 
       const data = await res.json();
 
@@ -223,7 +278,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     items.forEach((entry) => {
       const row = document.createElement("div");
-      row.className = "library-row library-item-row";
+      const isFailed = currentSource === "failed";
+
+      row.className = isFailed ? "library-row library-item-row is-failed" : "library-row library-item-row is-library";
 
       const artwork = entry.hasArtwork
         ? `<img class="track-artwork"
@@ -232,30 +289,63 @@ document.addEventListener("DOMContentLoaded", () => {
           onerror="this.replaceWith(document.createTextNode('▶'))">`
         : "▶";
 
-      row.innerHTML = `
-      <div class="col-icon">${artwork}</div>
-      <div class="col-title">${entry.title || entry.filename}</div>
-      <div class="col-artist">${entry.artist || "—"}</div>
-      <div class="col-album">${entry.album || "—"}</div>
-      <div class="col-duration">${entry.duration || "—"}</div>
-      <div class="col-actions">
-        <button class="actions-btn" aria-label="Actions">
-          <i class="fas fa-ellipsis-v"></i>
-        </button>
 
-        <div class="actions-menu">
-          <button data-action="info">
-            <i class="fas fa-info-circle"></i> Info
+
+      if(isFailed) {
+        row.innerHTML = `
+        <div class="col-icon">⚠</div>
+        <div class="col-url">${entry.url}</div>
+        <div class="col-vidId">${entry.id}</div>
+        <div class="col-format">${entry.format}</div>
+        <div class="col-quality">${entry.quality}</div>
+        <div class="col-type">${entry.type}</div>
+        <div class="col-playlist">${entry.playlist}</div>
+        <div class="col-index">${entry.index}</div>
+        <div class="col-actions">
+          <button class="actions-btn" aria-label="Actions">
+            <i class="fas fa-ellipsis-v"></i>
           </button>
-          <button data-action="edit">
-            <i class="fas fa-pen"></i> Edit
-          </button>
-          <button data-action="move">
-            <i class="fas fa-folder-open"></i> Move location
-          </button>
+
+          <div class="actions-menu">
+            <button data-action="info">
+              <i class="fas fa-info-circle"></i> Info
+            </button>
+            <button data-action="edit">
+              <i class="fas fa-pen"></i> Edit
+            </button>
+            <button data-action="move">
+              <i class="fas fa-folder-open"></i> Move location
+            </button>
+          </div>
         </div>
-      </div>
-    `;
+      `;
+      } else {
+        row.innerHTML = `
+        <div class="col-icon">${artwork}</div>
+        <div class="col-title">${entry.title || entry.filename}</div>
+        <div class="col-artist">${entry.artist || "—"}</div>
+        <div class="col-album">${entry.album || "—"}</div>
+        <div class="col-duration">${entry.duration || "—"}</div>
+        <div class="col-actions">
+          <button class="actions-btn" aria-label="Actions">
+            <i class="fas fa-ellipsis-v"></i>
+          </button>
+
+          <div class="actions-menu">
+            <button data-action="info">
+              <i class="fas fa-info-circle"></i> Info
+            </button>
+            <button data-action="edit">
+              <i class="fas fa-pen"></i> Edit
+            </button>
+            <button data-action="move">
+              <i class="fas fa-folder-open"></i> Move location
+            </button>
+          </div>
+        </div>
+      `;
+      }
+
 
       row.dataset.entry = JSON.stringify(entry);
       container.appendChild(row);
@@ -320,6 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   loadLibrary(true);
+  updateGridMode(currentSource);
   loadPlaylists();
 
   document.querySelectorAll(".sidebar-list").forEach((list) => {
@@ -359,6 +450,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const overlay = document.getElementById("modal-overlay");
 
   const infoFields = {
+    url: document.getElementById("info-url"),
+    playlist: document.getElementById("info-playlist"),
+    index: document.getElementById("info-index"),
+    format: document.getElementById("info-format"),
+    quality: document.getElementById("info-quality"),
+    type: document.getElementById("info-type"),
+    statuses: document.getElementById("info-statuses"),
+
     title: document.getElementById("info-title"),
     artist: document.getElementById("info-artist"),
     album: document.getElementById("info-album"),
@@ -368,33 +467,58 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   function openInfoModal(entry) {
+    const isFailed = currentSource === "failed";
+
+    overlay.classList.toggle("is-failed", isFailed);
     infoModal.classList.remove("hidden", "closing");
     overlay.classList.remove("hidden", "closing");
 
     // Artwork
     const artworkEl = document.getElementById("info-artwork");
-    if (entry.hasArtwork) {
+    if (!isFailed && entry.hasArtwork) {
       artworkEl.src = `/artwork?path=${encodeURIComponent(entry.path)}`;
       artworkEl.style.display = "block";
     } else {
       artworkEl.style.display = "none";
     }
 
-    // Header info
-    document.getElementById("info-title").textContent =
-      entry.title || entry.filename;
 
-    document.getElementById("info-artist").textContent =
-      entry.artist || "Unknown";
+    if (isFailed) {
+      infoFields.url.textContent = entry.url;
+      infoFields.playlist.textContent =
+        entry.playlist_title || "—";
+      infoFields.index.textContent =
+        entry.index ?? "—";
+      infoFields.format.textContent =
+        entry.format?.toUpperCase() || "—";
+      infoFields.quality.textContent =
+        entry.quality || "—";
+      infoFields.type.textContent =
+        entry.type || "—";
 
-    document.getElementById("info-duration").textContent =
-      entry.duration || "—";
+      infoFields.statuses.innerHTML =
+        (entry.statuses || [])
+          .map(s => `<div>• ${s}</div>`)
+          .join("");
+    } else {
+      // Header info
+      document.getElementById("info-title").textContent =
+        isFailed ? (entry.title || entry.filename) : entry.url;
 
-    // Details
-    infoFields.album.textContent = entry.album || "Unknown";
-    infoFields.year.textContent = entry.year || "";
-    infoFields.format.textContent = entry.format.toUpperCase();
-    infoFields.path.textContent = entry.path;
+      document.getElementById("info-artist").textContent =
+        isFailed ? entry.artist || "Unknown" : "Artist Not Fetched Yet";
+
+      document.getElementById("info-duration").textContent =
+        isFailed ? entry.duration || "—" : "Duration Not fetched Yet";
+
+      // Details
+      infoFields.album.textContent = entry.album || "Unknown";
+      infoFields.year.textContent = entry.year || "";
+      infoFields.format.textContent = entry.format.toUpperCase();
+      infoFields.path.textContent = entry.path;
+    }
+
+    
   }
 
   function closeModal() {

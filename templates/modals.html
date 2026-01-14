@@ -1,7 +1,48 @@
 {% block modals %}
 <div id="modal-overlay" class="modal-overlay hidden"></div>
 
-<div id="info-modal" class="modal hidden" role="dialog" aria-modal="true">
+<!-- FAILED DOWNLOAD LAYOUT -->
+<div class="failed-layout failed-only">
+
+  <div class="failed-title">
+    <i class="fas fa-exclamation-triangle"></i>
+    <span>Failed Download</span>
+  </div>
+
+  <div class="failed-url mono" id="info-url"></div>
+
+  <div class="failed-grid">
+    <div><span>Playlist</span><strong id="info-playlist"></strong></div>
+    <div><span>Index</span><strong id="info-index"></strong></div>
+
+    <div><span>Format</span><strong id="info-format"></strong></div>
+    <div><span>Quality</span><strong id="info-quality"></strong></div>
+
+    <div class="full">
+      <span>Type</span><strong id="info-type"></strong>
+    </div>
+  </div>
+
+  <div class="failed-divider">Failure Details</div>
+
+  <div class="failed-statuses mono" id="info-statuses"></div>
+
+  <div class="failed-actions">
+    <button class="btn retry-btn">
+      <i class="fas fa-redo"></i> Retry
+    </button>
+    <button class="btn copy-btn">
+      <i class="fas fa-copy"></i> Copy URL
+    </button>
+    <button class="btn ghost modal-close">
+      Close
+    </button>
+  </div>
+
+</div>
+
+
+<div id="info-modal" class="modal hidden normal-only" role="dialog" aria-modal="true">
   <div class="modal-header">
     <h3>Track Information</h3>
     <button class="modal-close" aria-label="Close">
@@ -9,13 +50,13 @@
     </button>
   </div>
 
-<div class="info-media">
-  <img id="info-artwork" class="info-artwork" alt="Artwork">
-  <div class="info-meta">
+  <div class="info-media">
+    <img id="info-artwork" class="info-artwork" alt="Artwork">
+    <div class="info-meta">
 
-    <span class="info-duration" id="info-duration"></span>
+      <span class="info-duration" id="info-duration"></span>
+    </div>
   </div>
-</div>
 
 
   <div class="modal-content">

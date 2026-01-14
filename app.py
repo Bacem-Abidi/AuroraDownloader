@@ -448,5 +448,68 @@ def library():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/failed", methods=["GET"])
+def failed_library():
+    try:
+        offset = int(request.args.get("offset", 0))
+        limit = int(request.args.get("limit", 30))
+
+        fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
+        if not os.path.isdir(fail_dir):
+            return jsonify({
+                "items": [],
+                "total": 0,
+                "hasMore": False
+            })
+
+        entries = []
+
+        # Load all weekly fail files
+        for filename in sorted(os.listdir(fail_dir)):
+            if not filename.startswith("fail_") or not filename.endswith(".json"):
+                continue
+
+            file_path = os.path.join(fail_dir, filename)
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        entries.extend(data)
+            except Exception:
+                continue
+
+        total = len(entries)
+        slice_entries = entries[offset : offset + limit]
+
+        # Normalize to library-like items
+        items = []
+        for entry in slice_entries:
+            items.append({
+                "id": entry.get("url", "").split("v=")[-1],
+                "url": entry.get("url", ""),
+                "playlist": entry.get("playlist_title", "None"),
+                "album": "-",
+                "duration": "—",
+                "type":  entry.get("type"),
+                "quality": entry.get("quality", "—"),
+                "format": entry.get("format", "—"),
+                "statuses": entry.get("statuses", []),
+                "timestamp": entry.get("timestamp"),
+                "index": entry.get("index"),
+            })
+
+        return jsonify({
+            "items": items,
+            "offset": offset,
+            "limit": limit,
+            "total": total,
+            "hasMore": offset + limit < total
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 if __name__ == "__main__":
     app.run(debug=True)

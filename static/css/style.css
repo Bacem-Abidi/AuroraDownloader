@@ -7,7 +7,7 @@
   --text-secondary: #b8b8b8;
   --success: #4caf50;
   --warning: #ff9800;
-  --danger: #f44336;
+  --danger: #9a322a;
   --scrollbar-track: #1e1e2f;
   --scrollbar-thumb: #4f46e5;
   --scrollbar-thumb-hover: #6d5dfc;
@@ -935,6 +935,14 @@ details summary {
   background: rgba(31, 197, 197, 0.2);
 }
 
+.sidebar-list li.failed:hover {
+  background: var(--danger);
+}
+
+.sidebar-list li.active.failed {
+  background: var(--danger);
+}
+
 .library-header {
   display: flex;
   justify-content: space-between;
@@ -954,11 +962,34 @@ details summary {
 
 .library-row {
   display: grid;
-  grid-template-columns: 24px 3fr 2fr 2fr 60px 32px;
   align-items: center;
   padding: 6px 10px;
   column-gap: 10px;
 }
+
+.library-row.is-library{
+  grid-template-columns:
+    24px     /* icon */
+    3fr      /* title */
+    2fr      /* artist */
+    2fr      /* album */
+    60px     /* duration */
+    32px;    /* actions */
+}
+
+.library-row.is-failed {
+  grid-template-columns:
+    24px     /* icon */
+    3fr      /* URL */
+    2fr      /* video id */
+    1fr      /* format */
+    1fr      /* quality */
+    1fr      /* type */
+    2fr      /* playlist */
+    60px     /* index */
+    32px;    /* actions */
+}
+
 
 .library-header-row {
   font-weight: 600;
@@ -980,7 +1011,8 @@ details summary {
 
 .col-title,
 .col-artist,
-.col-album {
+.col-album,
+.col-url{
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1248,3 +1280,133 @@ details summary {
 .modal-overlay.closing {
   animation: overlayOut 0.18s ease forwards;
 }
+
+.failed-only {
+  display: none;
+}
+
+.normal-only {
+  display: flex;
+}
+
+#modal-overlay.is-failed .failed-only {
+  display: flex;
+}
+
+#modal-overlay.is-failed .normal-only {
+  display: none;
+}
+
+
+/* ===== FAILED MODAL ===== */
+
+.failed-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 0;
+}
+
+.failed-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #ffb347;
+}
+
+.failed-title i {
+  color: #ff6b6b;
+}
+
+.failed-url {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 10px;
+  border-radius: 6px;
+  word-break: break-all;
+  font-size: 0.85rem;
+}
+
+.failed-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 18px;
+  font-size: 0.85rem;
+}
+
+.failed-grid span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.failed-grid strong {
+  font-weight: 500;
+}
+
+.failed-grid .full {
+  grid-column: 1 / -1;
+}
+
+.failed-divider {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  position: relative;
+}
+
+.failed-divider::before,
+.failed-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 30%;
+  height: 1px;
+  background: rgba(255,255,255,0.15);
+}
+
+.failed-divider::before { left: 0; }
+.failed-divider::after { right: 0; }
+
+.failed-statuses {
+  background: rgba(255, 0, 0, 0.05);
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 0.8rem;
+}
+
+.failed-statuses div {
+  margin-bottom: 6px;
+}
+
+.failed-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.failed-actions .btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.retry-btn {
+  background: var(--highlight);
+  color: #000;
+}
+
+.copy-btn {
+  background: rgba(255,255,255,0.1);
+  color: var(--text);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
