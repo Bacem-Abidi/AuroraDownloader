@@ -2,11 +2,16 @@
 <div id="modal-overlay" class="modal-overlay hidden"></div>
 
 <!-- FAILED DOWNLOAD LAYOUT -->
-<div class="failed-layout failed-only">
+<div id="failed-modal" class="modal hidden failed-layout failed-only" role="dialog" aria-modal="true">
 
-  <div class="failed-title">
-    <i class="fas fa-exclamation-triangle"></i>
-    <span>Failed Download</span>
+  <div class="modal-header">
+    <div class="failed-title">
+      <i class="fas fa-exclamation-triangle"></i>
+      <span>Failed Download</span>
+    </div>
+    <button class="modal-close" aria-label="Close">
+      <i class="fas fa-times"></i>
+    </button>
   </div>
 
   <div class="failed-url mono" id="info-url"></div>
@@ -31,11 +36,8 @@
     <button class="btn retry-btn">
       <i class="fas fa-redo"></i> Retry
     </button>
-    <button class="btn copy-btn">
+    <button class="btn copy-btn" id="copy-btn">
       <i class="fas fa-copy"></i> Copy URL
-    </button>
-    <button class="btn ghost modal-close">
-      Close
     </button>
   </div>
 

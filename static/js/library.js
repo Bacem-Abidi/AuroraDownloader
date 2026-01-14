@@ -29,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="col-playlist">Playlist</div>
       <div class="col-index">Index</div>
       <div class="col-actions"></div>
-    `
+    `,
   };
 
   let library = [];
@@ -44,14 +44,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentPlaylist = null;
   let totalCount = 0;
 
-
   function updateGridMode(source) {
     const header = document.getElementById("library-row-header");
 
     header.classList.toggle("is-library", source !== "failed");
     header.classList.toggle("is-failed", source === "failed");
   }
-
 
   async function loadPlaylists() {
     try {
@@ -89,11 +87,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     updateGridMode(currentSource);
 
-    if(source == "all") {
+    if (source == "all") {
       libraryTitle.textContent = "All Music";
       libraryMeta.textContent = "";
       header.innerHTML = HEADERS.all;
     } else {
+      mode = "failed";
       libraryTitle.textContent = "Failed Downloads";
       libraryMeta.textContent = "";
       header.innerHTML = HEADERS.failed;
@@ -109,7 +108,6 @@ document.addEventListener("DOMContentLoaded", () => {
     currentSource = "playlist";
 
     updateGridMode(currentSource);
-
 
     libraryTitle.textContent = name.replace(/\.m3u$/i, "");
     libraryMeta.textContent = "Playlist";
@@ -280,7 +278,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const row = document.createElement("div");
       const isFailed = currentSource === "failed";
 
-      row.className = isFailed ? "library-row library-item-row is-failed" : "library-row library-item-row is-library";
+      row.className = isFailed
+        ? "library-row library-item-row is-failed"
+        : "library-row library-item-row is-library";
 
       const artwork = entry.hasArtwork
         ? `<img class="track-artwork"
@@ -289,9 +289,7 @@ document.addEventListener("DOMContentLoaded", () => {
           onerror="this.replaceWith(document.createTextNode('▶'))">`
         : "▶";
 
-
-
-      if(isFailed) {
+      if (isFailed) {
         row.innerHTML = `
         <div class="col-icon">⚠</div>
         <div class="col-url">${entry.url}</div>
@@ -345,7 +343,6 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       `;
       }
-
 
       row.dataset.entry = JSON.stringify(entry);
       container.appendChild(row);
@@ -403,6 +400,8 @@ document.addEventListener("DOMContentLoaded", () => {
     ) {
       if (mode === "library") {
         loadLibrary();
+      } else if (mode === "failed") {
+        loadLibrary(false, "failed");
       } else if (mode === "playlist") {
         loadPlaylistPage();
       }
@@ -446,10 +445,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  const infoModal = document.getElementById("info-modal");
   const overlay = document.getElementById("modal-overlay");
 
   const infoFields = {
+    title: document.getElementById("info-title"),
+    duration: document.getElementById("info-duration"),
+    artist: document.getElementById("info-artist"),
+    album: document.getElementById("info-album"),
+    year: document.getElementById("info-year"),
+    fileFormat: document.getElementById("info-format"),
+    path: document.getElementById("info-path"),
+  };
+
+  const failedFields = {
     url: document.getElementById("info-url"),
     playlist: document.getElementById("info-playlist"),
     index: document.getElementById("info-index"),
@@ -457,20 +465,17 @@ document.addEventListener("DOMContentLoaded", () => {
     quality: document.getElementById("info-quality"),
     type: document.getElementById("info-type"),
     statuses: document.getElementById("info-statuses"),
-
-    title: document.getElementById("info-title"),
-    artist: document.getElementById("info-artist"),
-    album: document.getElementById("info-album"),
-    year: document.getElementById("info-year"),
-    format: document.getElementById("info-format"),
-    path: document.getElementById("info-path"),
   };
 
   function openInfoModal(entry) {
     const isFailed = currentSource === "failed";
 
-    overlay.classList.toggle("is-failed", isFailed);
+    const infoModal = isFailed
+      ? document.getElementById("failed-modal")
+      : document.getElementById("info-modal");
+
     infoModal.classList.remove("hidden", "closing");
+
     overlay.classList.remove("hidden", "closing");
 
     // Artwork
@@ -482,46 +487,39 @@ document.addEventListener("DOMContentLoaded", () => {
       artworkEl.style.display = "none";
     }
 
-
     if (isFailed) {
-      infoFields.url.textContent = entry.url;
-      infoFields.playlist.textContent =
-        entry.playlist_title || "—";
-      infoFields.index.textContent =
-        entry.index ?? "—";
-      infoFields.format.textContent =
-        entry.format?.toUpperCase() || "—";
-      infoFields.quality.textContent =
-        entry.quality || "—";
-      infoFields.type.textContent =
-        entry.type || "—";
+      failedFields.url.textContent = entry.url;
+      failedFields.playlist.textContent = entry.playlist || "—";
+      failedFields.index.textContent = entry.index ?? "—";
+      failedFields.format.textContent = entry.format?.toUpperCase() || "—";
+      failedFields.quality.textContent = entry.quality || "—";
+      failedFields.type.textContent = entry.type || "—";
 
-      infoFields.statuses.innerHTML =
-        (entry.statuses || [])
-          .map(s => `<div>• ${s}</div>`)
-          .join("");
+      failedFields.statuses.innerHTML = (entry.statuses || [])
+        .map((s) => `<div>• ${s}</div>`)
+        .join("");
     } else {
       // Header info
-      document.getElementById("info-title").textContent =
-        isFailed ? (entry.title || entry.filename) : entry.url;
+      infoFields.title.textContent = entry.title || entry.filename;
+      infoFields.artist.textContent = entry.artist || "Unknown";
 
-      document.getElementById("info-artist").textContent =
-        isFailed ? entry.artist || "Unknown" : "Artist Not Fetched Yet";
-
-      document.getElementById("info-duration").textContent =
-        isFailed ? entry.duration || "—" : "Duration Not fetched Yet";
+      infoFields.duration.textContent = entry.duration || "—";
 
       // Details
       infoFields.album.textContent = entry.album || "Unknown";
       infoFields.year.textContent = entry.year || "";
-      infoFields.format.textContent = entry.format.toUpperCase();
+      infoFields.fileFormat.textContent = entry.format?.toUpperCase() || "—";
       infoFields.path.textContent = entry.path;
     }
-
-    
   }
 
   function closeModal() {
+    const isFailed = currentSource === "failed";
+
+    const infoModal = isFailed
+      ? document.getElementById("failed-modal")
+      : document.getElementById("info-modal");
+
     infoModal.classList.add("closing");
     overlay.classList.add("closing");
 
@@ -539,7 +537,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   overlay.addEventListener("click", closeModal);
-  document.querySelector(".modal-close").addEventListener("click", closeModal);
+
+  document.addEventListener("click", (e) => {
+    if (e.target.closest(".modal-close")) {
+      closeModal();
+    }
+  });
 
   function openEditDialog(title, path) {
     alert(`Edit metadata for:\n${title}`);
@@ -548,4 +551,17 @@ document.addEventListener("DOMContentLoaded", () => {
   function moveFile(path) {
     alert(`Move file:\n${path}`);
   }
+
+  document.getElementById("copy-btn").addEventListener("click", () => {
+    const text = document.getElementById("info-url").textContent;
+
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        console.log("Copied!");
+      })
+      .catch((err) => {
+        console.error("Failed to copy:", err);
+      });
+  });
 });

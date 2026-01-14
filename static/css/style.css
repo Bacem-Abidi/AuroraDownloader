@@ -967,29 +967,28 @@ details summary {
   column-gap: 10px;
 }
 
-.library-row.is-library{
+.library-row.is-library {
   grid-template-columns:
-    24px     /* icon */
-    3fr      /* title */
-    2fr      /* artist */
-    2fr      /* album */
-    60px     /* duration */
-    32px;    /* actions */
+    24px /* icon */
+    3fr /* title */
+    2fr /* artist */
+    2fr /* album */
+    60px /* duration */
+    32px; /* actions */
 }
 
 .library-row.is-failed {
   grid-template-columns:
-    24px     /* icon */
-    3fr      /* URL */
-    2fr      /* video id */
-    1fr      /* format */
-    1fr      /* quality */
-    1fr      /* type */
-    2fr      /* playlist */
-    60px     /* index */
-    32px;    /* actions */
+    24px /* icon */
+    3fr /* URL */
+    2fr /* video id */
+    1fr /* format */
+    1fr /* quality */
+    1fr /* type */
+    2fr /* playlist */
+    60px /* index */
+    32px; /* actions */
 }
-
 
 .library-header-row {
   font-weight: 600;
@@ -1012,7 +1011,7 @@ details summary {
 .col-title,
 .col-artist,
 .col-album,
-.col-url{
+.col-url {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1186,7 +1185,6 @@ details summary {
   padding: 18px;
 }
 
-
 .info-media {
   display: flex;
   gap: 14px;
@@ -1225,7 +1223,6 @@ details summary {
   font-size: 1rem;
   color: var(--highlight);
 }
-
 
 .info-row {
   display: grid;
@@ -1281,27 +1278,9 @@ details summary {
   animation: overlayOut 0.18s ease forwards;
 }
 
-.failed-only {
-  display: none;
-}
-
-.normal-only {
-  display: flex;
-}
-
-#modal-overlay.is-failed .failed-only {
-  display: flex;
-}
-
-#modal-overlay.is-failed .normal-only {
-  display: none;
-}
-
-
 /* ===== FAILED MODAL ===== */
 
 .failed-layout {
-  display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 6px 0;
@@ -1326,6 +1305,7 @@ details summary {
   border-radius: 6px;
   word-break: break-all;
   font-size: 0.85rem;
+  margin-top: 10px;
 }
 
 .failed-grid {
@@ -1333,6 +1313,7 @@ details summary {
   grid-template-columns: 1fr 1fr;
   gap: 10px 18px;
   font-size: 0.85rem;
+  padding: 22px;
 }
 
 .failed-grid span {
@@ -1364,27 +1345,31 @@ details summary {
   top: 50%;
   width: 30%;
   height: 1px;
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.15);
 }
 
-.failed-divider::before { left: 0; }
-.failed-divider::after { right: 0; }
+.failed-divider::before {
+  left: 0;
+}
+.failed-divider::after {
+  right: 0;
+}
 
 .failed-statuses {
-  background: rgba(255, 0, 0, 0.05);
   border-radius: 6px;
-  padding: 10px;
+  padding: 14px;
   font-size: 0.8rem;
 }
 
 .failed-statuses div {
-  margin-bottom: 6px;
+  margin-bottom: 15px;
 }
 
 .failed-actions {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+  padding: 10px;
 }
 
 .failed-actions .btn {
@@ -1401,7 +1386,7 @@ details summary {
 }
 
 .copy-btn {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
   color: var(--text);
 }
 
@@ -1409,4 +1394,3 @@ details summary {
   background: transparent;
   color: var(--text-secondary);
 }
-
