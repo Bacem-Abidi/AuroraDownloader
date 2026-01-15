@@ -1,0 +1,112 @@
+{% block migrate %}
+
+<div class="control-group">
+  <h3>Library Migration</h3>
+  <p class="text-muted">
+    Migrate your local music library by searching for the best matches on
+    <strong>YouTube Music</strong>. Matches are selected using Matching rules.
+  </p>
+</div>
+
+<!-- Source -->
+<div class="config-group">
+  <h3>Source Library</h3>
+
+  <div class="options-grid" style="margin-top: 20px">
+    <div class="option">
+      <label>Audio Directory</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="audio-dir"
+          class="form-control"
+          value="Downloads/Songs"
+        />
+      </div>
+    </div>
+    <div class="option">
+      <label>Lyrics Directory</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="lyrics-dir"
+          class="form-control"
+          value="Downloads/Lyrics"
+        />
+      </div>
+    </div>
+    <div class="option">
+      <label>Playlists Directory</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="playlist-dir"
+          class="form-control"
+          value="Downloads/Playlists"
+        />
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Matching -->
+<div class="config-group">
+  <h3>
+    Matching Rules
+    <div class="tooltip-container">
+      <i class="bi bi-question-circle"></i>
+      <div class="tooltip">
+        <strong>Strong Match:</strong><br />
+        Title + Artist must closely match.<br /><br />
+        <strong>Threshold:</strong><br />
+        Higher values reduce false positives but may skip songs.
+      </div>
+    </div>
+  </h3>
+
+  <div class="options-grid">
+    <div class="option">
+      <div class="range-labels">
+        <label>Strong Match Threshold</label>
+        <span id="threshold-value">85%</span>
+      </div>
+      <input
+        type="range"
+        id="strong-match-threshold"
+        min="10"
+        max="100"
+        value="85"
+      />
+    </div>
+
+    <div class="option">
+      <label>Fallback Behavior</label>
+      <select id="fallback-policy" class="form-control">
+        <option value="skip">Skip if no strong match</option>
+        <option value="weak">Allow weak match</option>
+        <option value="manual">Log for manual review</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="playlist-status" id="migration-status" style="display: none">
+  <div class="playlist-header">
+    <h4><i class="fas fa-exchange-alt"></i> Migration Progress</h4>
+    <span id="migration-progress-text">0/0</span>
+  </div>
+  <div class="playlist-progress">
+    <div class="playlist-progress-bar" id="migration-progress-bar"></div>
+  </div>
+</div>
+
+<!-- Action -->
+<div class="action-center">
+  <button id="start-migration-btn" class="btn btn-primary btn-lg">
+    <i class="fas fa-random"></i> Start Migration
+  </button>
+</div>
+
+<!-- Status -->
+
+{% endblock %}

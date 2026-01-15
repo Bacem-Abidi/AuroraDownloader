@@ -18,6 +18,7 @@ from flask_bootstrap import Bootstrap5
 from mutagen import File as MutagenFile
 from downloader import download_manager
 from flask import Flask, render_template, request, jsonify, Response
+from difflib import SequenceMatcher
 
 
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
@@ -116,7 +117,6 @@ def start_download():
     fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
     os.makedirs(fail_dir, exist_ok=True)
 
-
     if not url:
         return jsonify({"error": "URL is required"}), 400
 
@@ -150,6 +150,63 @@ def start_download():
             "playlist_dir": playlist_dir,
         }
     )
+
+
+@app.route("/migrate/start", methods=["GET"])
+def start_migration():
+    ytmusic = YTMusic()
+
+    search_query = "voicemail ded reception"
+    search_results = ytmusic.search(search_query, filter="songs")
+    scored_matches = filter_song_matches(search_results, "voicemail", "ded reception")
+
+    STRONG_MATCH = 0.1
+    cleaned = [
+        serialize_song(score, r) for score, r in scored_matches if score >= STRONG_MATCH
+    ]
+
+    return jsonify(cleaned)
+
+
+def title_similarity(a, b):
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def filter_song_matches(results, target_title, target_artist):
+    target_title_n = target_title
+    target_artist_n = target_artist.lower()
+
+    scored = []
+
+    for r in results:
+        artists = " ".join(a["name"].lower() for a in r.get("artists", []))
+        if target_artist_n not in artists:
+            continue
+
+        result_title_n = r.get("title", "")
+        score = title_similarity(target_title_n, result_title_n)
+
+        scored.append((score, r))
+
+    # Sort best first
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    return scored
+
+
+def serialize_song(score, r):
+    return {
+        "score": round(score, 3),
+        "title": r.get("title"),
+        "artists": [a["name"] for a in r.get("artists", [])],
+        "album": r.get("album", {}).get("name"),
+        "duration_seconds": r.get("duration_seconds"),
+        "explicit": r.get("isExplicit"),
+        "videoId": r.get("videoId"),
+        "thumbnail": (
+            r.get("thumbnails", [{}])[-1].get("url") if r.get("thumbnails") else None
+        ),
+    }
 
 
 @app.route("/logs/<download_id>")
@@ -456,11 +513,7 @@ def failed_library():
 
         fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
         if not os.path.isdir(fail_dir):
-            return jsonify({
-                "items": [],
-                "total": 0,
-                "hasMore": False
-            })
+            return jsonify({"items": [], "total": 0, "hasMore": False})
 
         entries = []
 
@@ -484,31 +537,34 @@ def failed_library():
         # Normalize to library-like items
         items = []
         for entry in slice_entries:
-            items.append({
-                "id": entry.get("url", "").split("v=")[-1],
-                "url": entry.get("url", ""),
-                "playlist": entry.get("playlist_title", "None"),
-                "album": "-",
-                "duration": "—",
-                "type":  entry.get("type"),
-                "quality": entry.get("quality", "—"),
-                "format": entry.get("format", "—"),
-                "statuses": entry.get("statuses", []),
-                "timestamp": entry.get("timestamp"),
-                "index": entry.get("index"),
-            })
+            items.append(
+                {
+                    "id": entry.get("url", "").split("v=")[-1],
+                    "url": entry.get("url", ""),
+                    "playlist": entry.get("playlist_title", "None"),
+                    "album": "-",
+                    "duration": "—",
+                    "type": entry.get("type"),
+                    "quality": entry.get("quality", "—"),
+                    "format": entry.get("format", "—"),
+                    "statuses": entry.get("statuses", []),
+                    "timestamp": entry.get("timestamp"),
+                    "index": entry.get("index"),
+                }
+            )
 
-        return jsonify({
-            "items": items,
-            "offset": offset,
-            "limit": limit,
-            "total": total,
-            "hasMore": offset + limit < total
-        })
+        return jsonify(
+            {
+                "items": items,
+                "offset": offset,
+                "limit": limit,
+                "total": total,
+                "hasMore": offset + limit < total,
+            }
+        )
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 
 if __name__ == "__main__":

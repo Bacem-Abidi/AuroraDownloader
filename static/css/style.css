@@ -1394,3 +1394,46 @@ details summary {
   background: transparent;
   color: var(--text-secondary);
 }
+
+.text-muted {
+  color: var(--text-secondary);
+}
+
+.action-center {
+  margin-top: 20px;
+  justify-content: center;
+  display: flex;
+}
+
+/* Chrom, Edge, Safari */
+/* Track styles */
+input[type="range"]::-webkit-slider-runnable-track {
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+/* Thumb styles */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  background: var(--highlight);
+  border-radius: 50%;
+  margin-top: -6px; /* Center the thumb vertically on the track */
+}
+
+/* Firefox */
+/* Track styles */
+input[type="range"]::-moz-range-track {
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+/* Thumb styles */
+input[type="range"]::-moz-range-thumb {
+  background: var(--highlight);
+  border-radius: 50%;
+  /* Firefox generally centers the thumb automatically */
+}
+input[type="range"] {
+  margin-top: 7px;
+  padding: 8px 10px;
+}
