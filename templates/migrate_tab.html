@@ -18,7 +18,7 @@
       <div class="input-group">
         <input
           type="text"
-          id="audio-dir"
+          id="audio-migrate-dir"
           class="form-control"
           value="Downloads/Songs"
         />
@@ -29,7 +29,7 @@
       <div class="input-group">
         <input
           type="text"
-          id="lyrics-dir"
+          id="lyrics-migrate-dir"
           class="form-control"
           value="Downloads/Lyrics"
         />
@@ -40,7 +40,7 @@
       <div class="input-group">
         <input
           type="text"
-          id="playlist-dir"
+          id="playlist-migrate-dir"
           class="form-control"
           value="Downloads/Playlists"
         />
@@ -83,8 +83,7 @@
       <label>Fallback Behavior</label>
       <select id="fallback-policy" class="form-control">
         <option value="skip">Skip if no strong match</option>
-        <option value="weak">Allow weak match</option>
-        <option value="manual">Log for manual review</option>
+        <option value="manual">Ask What to use when no strong matches were found</option>
       </select>
     </div>
   </div>

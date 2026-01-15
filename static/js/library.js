@@ -558,10 +558,29 @@ document.addEventListener("DOMContentLoaded", () => {
     navigator.clipboard
       .writeText(text)
       .then(() => {
-        console.log("Copied!");
+        showToast("Copied!");
       })
       .catch((err) => {
-        console.error("Failed to copy:", err);
+        showToast("Failed to copy:", err);
       });
   });
+
+  function showToast(message) {
+    // Create toast element if it doesn't exist
+    let toast = document.getElementById("toast-notification");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "toast-notification";
+      toast.className = "toast";
+      document.body.appendChild(toast);
+    }
+
+    toast.textContent = message;
+    toast.style.display = "block";
+
+    // Hide after 3 seconds
+    setTimeout(() => {
+      toast.style.display = "none";
+    }, 3000);
+  }
 });

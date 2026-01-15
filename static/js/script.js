@@ -41,6 +41,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // Manger Tab
   const managementTabBtn = document.getElementById("management-tab-btn");
 
+  const threshold = document.getElementById("strong-match-threshold-default");
+  const valueLabel = document.getElementById("threshold-value-default");
+
+  threshold.addEventListener("input", () => {
+    valueLabel.textContent = threshold.value + "%";
+  });
+
   function disableManagementTab() {
     if (!managementTabBtn) return;
     managementTabBtn.classList.add("disabled");
@@ -50,7 +57,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!managementTabBtn) return;
     managementTabBtn.classList.remove("disabled");
   }
-
 
   // Load saved preferences
   async function loadPreferences() {
@@ -104,6 +110,9 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("overwrite-files-default").checked =
         prefs.overwrite;
 
+      threshold.value = prefs.matchThreshold;
+      valueLabel.textContent = prefs.matchThreshold + "%";
+      document.getElementById("fallback-policy-default").value = prefs.fallback;
       console.log("Preferences loaded successfully");
     } catch (e) {
       console.error("Error loading preferences:", e);
@@ -126,6 +135,9 @@ document.addEventListener("DOMContentLoaded", () => {
       fileNames: filenameOnlyDefaultCheckbox.checked,
       resume: document.getElementById("resume-download-default").checked,
       overwrite: document.getElementById("overwrite-files-default").checked,
+      matchThreshold: document.getElementById("strong-match-threshold-default")
+        .value,
+      fallback: document.getElementById("fallback-policy-default").value,
     };
     try {
       const response = await fetch("/preferences", {

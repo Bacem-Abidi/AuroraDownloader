@@ -173,6 +173,46 @@
     </div>
   </div>
 
+ 
+<div class="config-group">
+  <h3>
+    Matching Rules
+    <div class="tooltip-container">
+      <i class="bi bi-question-circle"></i>
+      <div class="tooltip">
+        <strong>Strong Match:</strong><br />
+          Title + Artist must closely match.<br /><br />
+          <strong>Threshold:</strong><br />
+          Higher values reduce false positives but may skip songs.
+        </div>
+      </div>
+    </h3>
+
+    <div class="options-grid">
+      <div class="option">
+        <div class="range-labels">
+          <label>Strong Match Threshold</label>
+          <span id="threshold-value-default">85%</span>
+        </div>
+        <input
+          type="range"
+          id="strong-match-threshold-default"
+          min="10"
+          max="100"
+          value="85"
+        />
+      </div>
+
+      <div class="option">
+        <label>Fallback Behavior</label>
+        <select id="fallback-policy-default" class="form-control">
+          <option value="skip">Skip if no strong match</option>
+          <option value="manual">Ask What to use when no strong matches were found</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
   <!-- Save Defaults Button -->
   <div class="save-defaults">
     <button class="btn btn-outline-secondary" id="save-defaults">

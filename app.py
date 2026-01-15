@@ -56,6 +56,8 @@ def get_preferences():
                     "updateMpd": True,
                     "mpcPath": "mpc",
                     "mpcCommand": "update",
+                    "matchThreshold": "85",
+                    "fallback": "skip",
                 }
             )
     except Exception as e:
