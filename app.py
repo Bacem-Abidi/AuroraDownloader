@@ -154,61 +154,50 @@ def start_download():
     )
 
 
-@app.route("/migrate/start", methods=["GET"])
+@app.route("/migrate/start", methods=["POST"])
 def start_migration():
-    ytmusic = YTMusic()
+    data = request.get_json()
+    audio_dir = data.get("audio_dir", "Downloads")
+    match_perc = data.get("match_perc", "85")
 
-    search_query = "voicemail ded reception"
-    search_results = ytmusic.search(search_query, filter="songs")
-    scored_matches = filter_song_matches(search_results, "voicemail", "ded reception")
+    # Expand paths and convert to absolute paths
+    def expand_path(path):
+        # Handle ~ and relative paths
+        expanded = os.path.expanduser(path)
+        # Convert to absolute path
+        return os.path.abspath(expanded)
 
-    STRONG_MATCH = 0.1
-    cleaned = [
-        serialize_song(score, r) for score, r in scored_matches if score >= STRONG_MATCH
-    ]
+    audio_dir = expand_path(audio_dir)
 
-    return jsonify(cleaned)
+    os.makedirs(audio_dir, exist_ok=True)
 
+    migrate_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "migration")
+    os.makedirs(migrate_dir, exist_ok=True)
 
-def title_similarity(a, b):
-    return SequenceMatcher(None, a, b).ratio()
+    migration_id = str(uuid.uuid4())
 
+    download_manager.start_migration(
+        migration_id, audio_dir, match_perc, "manual", migrate_dir
+    )
 
-def filter_song_matches(results, target_title, target_artist):
-    target_title_n = target_title
-    target_artist_n = target_artist.lower()
-
-    scored = []
-
-    for r in results:
-        artists = " ".join(a["name"].lower() for a in r.get("artists", []))
-        if target_artist_n not in artists:
-            continue
-
-        result_title_n = r.get("title", "")
-        score = title_similarity(target_title_n, result_title_n)
-
-        scored.append((score, r))
-
-    # Sort best first
-    scored.sort(key=lambda x: x[0], reverse=True)
-
-    return scored
+    return jsonify({"migration_id": migration_id})
 
 
-def serialize_song(score, r):
-    return {
-        "score": round(score, 3),
-        "title": r.get("title"),
-        "artists": [a["name"] for a in r.get("artists", [])],
-        "album": r.get("album", {}).get("name"),
-        "duration_seconds": r.get("duration_seconds"),
-        "explicit": r.get("isExplicit"),
-        "videoId": r.get("videoId"),
-        "thumbnail": (
-            r.get("thumbnails", [{}])[-1].get("url") if r.get("thumbnails") else None
-        ),
-    }
+@app.route("/migrate/choice", methods=["POST"])
+def migrate_choice():
+    data = request.get_json()
+    migration_id = data["migration_id"]
+    video_id = data.get("video_id")  # None = skip
+
+    mgr = download_manager
+
+    if migration_id not in mgr.migration_choices:
+        return jsonify({"error": "No pending choice"}), 400
+
+    mgr.migration_choices[migration_id]["selected"] = video_id
+    mgr.migration_choices[migration_id]["event"].set()
+
+    return jsonify({"status": "ok"})
 
 
 @app.route("/logs/<download_id>")

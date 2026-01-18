@@ -1,6 +1,24 @@
 {% block modals %}
 <div id="modal-overlay" class="modal-overlay hidden"></div>
 
+<div id="match-modal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Choose a match</h3>
+      <p id="match-modal-desc" class="modal-subtitle"></p>
+    </div>
+
+    <div id="match-list" class="match-list"></div>
+
+    <div class="modal-footer">
+      <button id="skip-match" class="btn btn-secondary">
+        Skip this track
+      </button>
+    </div>
+  </div>
+</div>
+
+
 <!-- FAILED DOWNLOAD LAYOUT -->
 <div id="failed-modal" class="modal hidden failed-layout failed-only" role="dialog" aria-modal="true">
 

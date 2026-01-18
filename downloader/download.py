@@ -15,12 +15,18 @@ from .playlist import PlaylistManager
 from .thumbnail import ThumbnailManager
 from .mpd_manager import MPDManager
 from history import HistoryLogger
+from migration import MigrationLogger
 from fail import FailLogger
+from ytmusicapi import YTMusic
+from mutagen.id3 import ID3, APIC
+from mutagen import File as MutagenFile
+from difflib import SequenceMatcher
 from progress_tracker import ProgressTracker
-from .utils import get_extension, get_quality_setting 
+from .utils import get_extension, get_quality_setting
 from collections import defaultdict
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
+
 
 class DownloadManager:
     def __init__(self, output_dir="Downloads"):
@@ -29,11 +35,12 @@ class DownloadManager:
         self.lock = threading.Lock()
         self.history_logger = None
         self.fail_logger = None
+        self.ytmusic = YTMusic()
+        self.migration_logger = None
         self.custom_temp_dir = "temp"
         os.makedirs(self.custom_temp_dir, exist_ok=True)
-        config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config')
+        config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
 
-        
         # Initialize helper classes
         self.metadata_manager = MetadataManager(self.custom_temp_dir)
         self.lyrics_manager = LyricsManager()
@@ -41,9 +48,25 @@ class DownloadManager:
         self.thumbnail_manager = ThumbnailManager()
         self.mpd_manager = MPDManager()
 
-    def start_download(self, url, download_id, quality='best', codec='mp3', 
-                      audio_dir="Downloads", lyrics_dir="Lyrics", playlist_dir="Playlists",
-                      playlist_options=None, mpd_options=None, history_dir=None, fail_dir=None,overwrite=False, resume=False, config_dir=None):
+        self.migration_choices = {}
+
+    def start_download(
+        self,
+        url,
+        download_id,
+        quality="best",
+        codec="mp3",
+        audio_dir="Downloads",
+        lyrics_dir="Lyrics",
+        playlist_dir="Playlists",
+        playlist_options=None,
+        mpd_options=None,
+        history_dir=None,
+        fail_dir=None,
+        overwrite=False,
+        resume=False,
+        config_dir=None,
+    ):
         """Start a download process in a separate thread"""
         if download_id in self.active_downloads:
             return
@@ -65,18 +88,43 @@ class DownloadManager:
         log_queue = Queue()
         self.log_queues[download_id] = log_queue
         self.active_downloads[download_id] = True
-        
+
         # Start the download in a new thread
         thread = threading.Thread(
-            target=self._download_thread, 
-            args=(url, download_id, log_queue, quality, codec, audio_dir, lyrics_dir,
-                  playlist_dir,playlist_options, mpd_options,overwrite, resume),
-            daemon=True
+            target=self._download_thread,
+            args=(
+                url,
+                download_id,
+                log_queue,
+                quality,
+                codec,
+                audio_dir,
+                lyrics_dir,
+                playlist_dir,
+                playlist_options,
+                mpd_options,
+                overwrite,
+                resume,
+            ),
+            daemon=True,
         )
         thread.start()
-    
-    def _download_thread(self, url, download_id, log_queue, quality, codec, audio_dir, 
-                         lyrics_dir, playlist_dir, playlist_options, mpd_options, overwrite, resume=False):
+
+    def _download_thread(
+        self,
+        url,
+        download_id,
+        log_queue,
+        quality,
+        codec,
+        audio_dir,
+        lyrics_dir,
+        playlist_dir,
+        playlist_options,
+        mpd_options,
+        overwrite,
+        resume=False,
+    ):
         """The actual download thread"""
         thumbnail_path = None
         output_file = None
@@ -87,112 +135,128 @@ class DownloadManager:
             playlist_title = "Playlist"
 
             if playlist_options is None:
-                playlist_options = {
-                    'relative_paths': True,
-                    'filenames_only': False
-                }
+                playlist_options = {"relative_paths": True, "filenames_only": False}
 
             if "list=" in url and "playlist" in url:
                 is_playlist = True
                 parsed_url = urlparse(url)
                 query_params = parse_qs(parsed_url.query)
-                playlist_id = query_params.get('list', [''])[0]
+                playlist_id = query_params.get("list", [""])[0]
 
                 # Get playlist metadata
                 playlist_metadata_cmd = [
-                    'yt-dlp',
-                    f'https://www.youtube.com/playlist?list={playlist_id}',
-                    '--dump-json',
-                    '--flat-playlist'
+                    "yt-dlp",
+                    f"https://www.youtube.com/playlist?list={playlist_id}",
+                    "--dump-json",
+                    "--flat-playlist",
                 ]
 
                 log_queue.put("[PLAYLIST] Retrieving playlist metadata...")
                 result = subprocess.run(
-                    playlist_metadata_cmd,
-                    capture_output=True,
-                    text=True,
-                    check=True
+                    playlist_metadata_cmd, capture_output=True, text=True, check=True
                 )
 
-                playlist_entries = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
-                
+                playlist_entries = [
+                    json.loads(line)
+                    for line in result.stdout.splitlines()
+                    if line.strip()
+                ]
+
                 if playlist_entries:
-                    playlist_title = playlist_entries[0].get('playlist_title', 'Playlist')
-                    playlist_title = re.sub(r'[^\w\-_\. ]', '', playlist_title)  # Sanitize filename
-                    log_queue.put(f"[PLAYLIST] Found {len(playlist_entries)} videos in '{playlist_title}'")
+                    playlist_title = playlist_entries[0].get(
+                        "playlist_title", "Playlist"
+                    )
+                    playlist_title = re.sub(
+                        r"[^\w\-_\. ]", "", playlist_title
+                    )  # Sanitize filename
+                    log_queue.put(
+                        f"[PLAYLIST] Found {len(playlist_entries)} videos in '{playlist_title}'"
+                    )
                 else:
-                    log_queue.put("[WARNING] Failed to get playlist metadata, using default")
+                    log_queue.put(
+                        "[WARNING] Failed to get playlist metadata, using default"
+                    )
 
             if is_playlist:
-                log_queue.put(f"[PLAYLIST] Starting download of playlist: {playlist_title}")
-
+                log_queue.put(
+                    f"[PLAYLIST] Starting download of playlist: {playlist_title}"
+                )
 
                 # Generate playlist file path
                 playlist_file = os.path.join(playlist_dir, f"{playlist_title}.m3u")
-                
+
                 # Load existing playlist entries if resuming
                 if resume and os.path.exists(playlist_file):
                     try:
-                        with open(playlist_file, 'r', encoding='utf-8') as f:
+                        with open(playlist_file, "r", encoding="utf-8") as f:
                             for line in f:
                                 line = line.strip()
-                                if line and not line.startswith('#'):
+                                if line and not line.startswith("#"):
                                     playlist_files.append(line)
-                        log_queue.put(f"[PROGRESS] Loaded {len(playlist_files)} existing tracks from playlist")
+                        log_queue.put(
+                            f"[PROGRESS] Loaded {len(playlist_files)} existing tracks from playlist"
+                        )
                     except Exception as e:
-                        log_queue.put(f"[WARNING] Failed to load existing playlist: {str(e)}")
+                        log_queue.put(
+                            f"[WARNING] Failed to load existing playlist: {str(e)}"
+                        )
 
                 start_index = 0
                 if resume:
                     progress = self.progress_tracker.get_progress(url)
                     if progress:
                         start_index = progress["last_index"] + 1
-                        log_queue.put(f"[PROGRESS] Resuming from track {start_index+1}/{len(playlist_entries)}")
+                        log_queue.put(
+                            f"[PROGRESS] Resuming from track {start_index + 1}/{len(playlist_entries)}"
+                        )
                     else:
-                        log_queue.put("[PROGRESS] No progress found, starting from beginning")
-                
+                        log_queue.put(
+                            "[PROGRESS] No progress found, starting from beginning"
+                        )
+
                 # Download each video in the playlist
                 for i, entry in enumerate(playlist_entries):
                     if i < start_index:
                         continue
 
                     video_url = f"https://www.youtube.com/watch?v={entry['id']}"
-                    log_queue.put(f"[PLAYLIST] Downloading video {i+1}/{len(playlist_entries)}: {entry.get('title', 'Untitled')}")
+                    log_queue.put(
+                        f"[PLAYLIST] Downloading video {i + 1}/{len(playlist_entries)}: {entry.get('title', 'Untitled')}"
+                    )
 
                     # Download the video
                     video_file = self._download_video(
-                        video_url, 
-                        log_queue, 
-                        quality, 
-                        codec, 
-                        audio_dir, 
+                        video_url,
+                        log_queue,
+                        quality,
+                        codec,
+                        audio_dir,
                         lyrics_dir,
                         is_playlist,
                         overwrite,
                         playlist_title,
                     )
-                    
+
                     if video_file:
                         playlist_files.append(video_file)
                         self.progress_tracker.save_progress(
-                            url, 
-                            playlist_title, 
-                            i, 
-                            len(playlist_entries)
+                            url, playlist_title, i, len(playlist_entries)
                         )
-                        
-                        log_queue.put(f"[PLAYLIST] Completed video {i+1}/{len(playlist_entries)}")
+
+                        log_queue.put(
+                            f"[PLAYLIST] Completed video {i + 1}/{len(playlist_entries)}"
+                        )
                     else:
                         self._log_fail(
                             is_playlist,
                             playlist_title,
-                            i+1,
+                            i + 1,
                             video_url,
                             quality,
                             codec,
-                            "Failed (didn't download for some reason)"
+                            "Failed (didn't download for some reason)",
                         )
-                        log_queue.put(f"[WARNING] Failed to download video {i+1}")
+                        log_queue.put(f"[WARNING] Failed to download video {i + 1}")
 
                 # Create M3U playlist file
                 if playlist_files:
@@ -201,12 +265,12 @@ class DownloadManager:
                         playlist_files,
                         playlist_dir,
                         playlist_options,
-                        log_queue
+                        log_queue,
                     )
                     log_queue.put(f"[PLAYLIST] Created M3U playlist in {playlist_dir}")
                 else:
                     log_queue.put("[WARNING] No files downloaded for playlist")
-                
+
                 # End playlist processing
                 self.active_downloads.pop(download_id, None)
                 log_queue.put("[END]")
@@ -214,82 +278,97 @@ class DownloadManager:
 
             # If not a playlist, process as single video
             output_file = self._download_video(
-                url, 
-                log_queue, 
-                quality, 
-                codec, 
-                audio_dir, 
+                url,
+                log_queue,
+                quality,
+                codec,
+                audio_dir,
                 lyrics_dir,
                 is_playlist,
-                overwrite
+                overwrite,
             )
         except Exception as e:
             log_queue.put(f"[ERROR] Download failed: {str(e)}")
             output_file = None
-            
+
         finally:
             # Clean up thumbnail file
             if thumbnail_path and os.path.exists(thumbnail_path):
                 os.remove(thumbnail_path)
                 log_queue.put("[THUMBNAIL] Temporary thumbnail deleted")
-           
+
             # Update MPD if requested
-            if mpd_options and mpd_options.get('update_mpd'):
+            if mpd_options and mpd_options.get("update_mpd"):
                 self.mpd_manager.update_mpd(mpd_options, log_queue)
 
             self.active_downloads.pop(download_id, None)
             log_queue.put("[END]")  # Signal end of stream
 
-
-    
-    def _download_video(self, url, log_queue, quality, codec, audio_dir, lyrics_dir, 
-                       is_playlist, overwrite=False, playlist_title=None):
+    def _download_video(
+        self,
+        url,
+        log_queue,
+        quality,
+        codec,
+        audio_dir,
+        lyrics_dir,
+        is_playlist,
+        overwrite=False,
+        playlist_title=None,
+    ):
         """Download and process a single video using helper classes"""
         thumbnail_path = None
         output_file = None
         lrc_file = None
-        
+
         try:
             # Get video metadata
             metadata = self.metadata_manager.get_video_metadata(url, log_queue)
-            title = metadata['title']
-            sanitized_title = metadata['sanitized_title']
-            uploader = metadata['uploader']
-            year = metadata['year']
-            video_id = metadata['video_id']
-            thumbnail_url = metadata['thumbnail_url']
-            
+            title = metadata["title"]
+            sanitized_title = metadata["sanitized_title"]
+            uploader = metadata["uploader"]
+            year = metadata["year"]
+            video_id = metadata["video_id"]
+            thumbnail_url = metadata["thumbnail_url"]
+
             # Determine output filename
             extension = get_extension(codec)
             output_filename = f"{sanitized_title}.{extension}"
             output_path = os.path.join(audio_dir, output_filename)
-            
+
             # Check if file exists and overwrite is disabled
             if os.path.exists(output_path) and not overwrite:
                 log_queue.put(f"[SKIPPED] File exists: {output_filename}")
-                self._log_history(is_playlist, playlist_title, url, output_path, 
-                                uploader, lrc_file, quality, codec, 'skipped')
+                self._log_history(
+                    is_playlist,
+                    playlist_title,
+                    url,
+                    output_path,
+                    uploader,
+                    lrc_file,
+                    quality,
+                    codec,
+                    "skipped",
+                )
                 return output_path
 
             # Download thumbnail
-            thumbnail_path = self.thumbnail_manager.download_thumbnail(
-                thumbnail_url, 
-                log_queue
-            ) if thumbnail_url else None
+            thumbnail_path = (
+                self.thumbnail_manager.download_thumbnail(thumbnail_url, log_queue)
+                if thumbnail_url
+                else None
+            )
 
             # Get lyrics
             lyrics = self.lyrics_manager.get_lyrics(
-                title, 
-                uploader, 
-                video_id, 
-                log_queue
+                title, uploader, video_id, log_queue
             )
 
             # Prepare download command
             quality_setting = get_quality_setting(quality)
             log_queue.put(f"[QUALITY] Selected: {quality} ({quality_setting})")
             log_queue.put(f"[SETTINGS] Selected codec: {codec.upper()}")
-            
+
             cmd = self._build_download_command(
                 url,
                 quality_setting,
@@ -298,53 +377,48 @@ class DownloadManager:
                 year,
                 uploader,
                 title,
-                sanitized_title
+                sanitized_title,
             )
             log_queue.put(f"[COMMAND] {' '.join(cmd)}")
-            
+
             # Execute download command
             output_file = self._execute_download_command(
-                cmd, 
-                audio_dir, 
-                sanitized_title, 
-                extension, 
-                log_queue
+                cmd, audio_dir, sanitized_title, extension, log_queue
             )
-            
+
             if output_file:
                 # Embed thumbnail if available
                 if thumbnail_path:
                     self.thumbnail_manager.embed_thumbnail(
-                        output_file, 
-                        thumbnail_path, 
-                        codec, 
-                        log_queue
+                        output_file, thumbnail_path, codec, log_queue
                     )
-                
+
                 # Save lyrics
                 if lyrics:
                     base_name = os.path.splitext(os.path.basename(output_file))[0]
                     lrc_file = os.path.join(lyrics_dir, f"{base_name}.lrc")
-                    
+
                     with open(lrc_file, "w", encoding="utf-8") as f:
                         f.write(lyrics)
-                    
-                    log_queue.put(f"[LYRICS] Saved lyrics to {os.path.basename(lrc_file)}")
+
+                    log_queue.put(
+                        f"[LYRICS] Saved lyrics to {os.path.basename(lrc_file)}"
+                    )
                     log_queue.put(f"[DIRECTORY] Lyrics saved to: {lyrics_dir}")
 
                 # Log history
                 self._log_history(
-                    is_playlist, 
-                    playlist_title, 
-                    url, 
-                    output_file, 
-                    uploader, 
-                    lrc_file, 
-                    quality, 
-                    codec, 
-                    'downloaded'
+                    is_playlist,
+                    playlist_title,
+                    url,
+                    output_file,
+                    uploader,
+                    lrc_file,
+                    quality,
+                    codec,
+                    "downloaded",
                 )
-                
+
             else:
                 self._log_fail(
                     is_playlist,
@@ -353,21 +427,21 @@ class DownloadManager:
                     url,
                     quality,
                     codec,
-                    "Failed (didn't download for some reason)"
+                    "Failed (didn't download for some reason)",
                 )
-                
+
             return output_file
 
         except Exception as e:
             self._log_fail(
-                    is_playlist,
-                    playlist_title,
-                    None,
-                    url,
-                    quality,
-                    codec,
-                    "[ERROR] Download failed: " + str(e),
-                )
+                is_playlist,
+                playlist_title,
+                None,
+                url,
+                quality,
+                codec,
+                "[ERROR] Download failed: " + str(e),
+            )
             log_queue.put(f"[ERROR] Download failed: {str(e)}")
             return None
         finally:
@@ -376,40 +450,53 @@ class DownloadManager:
                 os.remove(thumbnail_path)
                 log_queue.put("[THUMBNAIL] Temporary thumbnail deleted")
 
-
-
-    def _build_download_command(self, url, quality_setting, codec, audio_dir, year,artist, title, sanitized_title):
+    def _build_download_command(
+        self,
+        url,
+        quality_setting,
+        codec,
+        audio_dir,
+        year,
+        artist,
+        title,
+        sanitized_title,
+    ):
         """Construct the yt-dlp command with appropriate parameters"""
         cmd = [
-            'yt-dlp',
+            "yt-dlp",
             url,
-            '--extract-audio',
-            '--audio-format', codec,
-            '--audio-quality', quality_setting,
-            '--embed-metadata',
-            '--add-metadata',
-            '--parse-metadata', f'title:{title}',
-            '--parse-metadata', f'uploader:{artist}',
+            "--extract-audio",
+            "--audio-format",
+            codec,
+            "--audio-quality",
+            quality_setting,
+            "--embed-metadata",
+            "--add-metadata",
+            "--parse-metadata",
+            f"title:{title}",
+            "--parse-metadata",
+            f"uploader:{artist}",
             # '--output', f'{audio_dir}/%(title)s.%(ext)s',
-            '-o', f'{audio_dir}/{sanitized_title}.%(ext)s',
-            '--verbose',
-            '--no-simulate',
-            '--newline',
+            "-o",
+            f"{audio_dir}/{sanitized_title}.%(ext)s",
+            "--verbose",
+            "--no-simulate",
+            "--newline",
         ]
-        
+
         # Add year if available
         if year:
-            cmd.extend(['--parse-metadata', f'{year}:%(meta_year)s'])
-        
+            cmd.extend(["--parse-metadata", f"{year}:%(meta_year)s"])
+
         # Special handling for certain codecs
-        if codec == 'flac':
-            cmd.extend(['--audio-quality', '0'])  # FLAC is lossless
-            cmd.extend(['--postprocessor-args', '-c:a flac -compression_level 12'])
-        elif codec == 'wav':
-            cmd.extend(['--postprocessor-args', '-c:a pcm_s16le'])
-        elif codec == 'opus':
-            cmd.extend(['--postprocessor-args', '-b:a ' + quality_setting])
-        
+        if codec == "flac":
+            cmd.extend(["--audio-quality", "0"])  # FLAC is lossless
+            cmd.extend(["--postprocessor-args", "-c:a flac -compression_level 12"])
+        elif codec == "wav":
+            cmd.extend(["--postprocessor-args", "-c:a pcm_s16le"])
+        elif codec == "opus":
+            cmd.extend(["--postprocessor-args", "-b:a " + quality_setting])
+
         return cmd
 
     def _execute_download_command(self, cmd, audio_dir, title, extension, log_queue):
@@ -420,91 +507,346 @@ class DownloadManager:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
         )
-        
+
         # Stream output in real-time
         for line in process.stdout:
             cleaned_line = line.strip()
             if cleaned_line:
                 # Simplify verbose messages
-                if 'Deleting original file' in cleaned_line:
-                    cleaned_line = '[CLEANUP] Deleting temporary files'
-                elif 'Embedding metadata' in cleaned_line:
-                    cleaned_line = '[METADATA] Embedding metadata'
-                elif 'Embedding thumbnail' in cleaned_line:
-                    cleaned_line = '[METADATA] Embedding thumbnail'
-                
+                if "Deleting original file" in cleaned_line:
+                    cleaned_line = "[CLEANUP] Deleting temporary files"
+                elif "Embedding metadata" in cleaned_line:
+                    cleaned_line = "[METADATA] Embedding metadata"
+                elif "Embedding thumbnail" in cleaned_line:
+                    cleaned_line = "[METADATA] Embedding thumbnail"
+
                 log_queue.put(cleaned_line)
-        
+
         process.wait()
-        
+
         if process.returncode != 0:
             log_queue.put(f"[ERROR] Download failed with code {process.returncode}")
             return None
-        
+
         # Find the downloaded file
         output_files = [
-            f for f in os.listdir(audio_dir)
-            if f.endswith(f'.{extension}') and title in f
+            f
+            for f in os.listdir(audio_dir)
+            if f.endswith(f".{extension}") and title in f
         ]
-        
+
         if not output_files:
             log_queue.put("[ERROR] Downloaded file not found")
             return None
-        
+
         output_file = os.path.join(audio_dir, output_files[0])
         log_queue.put(f"[SUCCESS] Audio downloaded: {output_files[0]}")
         return output_file
 
-    def _log_history(self, is_playlist, playlist_title, url, output_file, 
-                    artist, lrc_file, quality, codec, status):
+    def start_migration(
+        self,
+        migration_id,
+        audio_dir,
+        match_perc,
+        fallback,
+        migrate_dir,
+    ):
+        self.migration_logger = MigrationLogger(migrate_dir)
+
+        log_queue = Queue()
+        self.log_queues[migration_id] = log_queue
+        self.active_downloads[migration_id] = True
+
+        thread = threading.Thread(
+            target=self._migration_thread,
+            args=(migration_id, audio_dir, match_perc, fallback, log_queue),
+            daemon=True,
+        )
+        thread.start()
+
+    def _migration_thread(
+        self, migration_id, audio_dir, match_perc, fallback, log_queue
+    ):
+        log_queue.put(
+            f"[MIGRATION] Starting library migration With {match_perc} accuracy..."
+        )
+
+        try:
+            match_threshold = float(match_perc) / 100.0
+        except (TypeError, ValueError):
+            match_threshold = 0.85
+
+        for root, _, files in os.walk(audio_dir):
+            for filename in files:
+                if not filename.lower().endswith((".mp3", ".flac", ".m4a")):
+                    continue
+
+                path = os.path.join(root, filename)
+
+                try:
+                    meta = self.get_audio_metadata(path)
+                    if not meta:
+                        raise Exception("MetaData was not fetched")
+                    title = meta["title"]
+                    artist = meta["artist"]
+
+                    log_queue.put(f"[SCAN] {title} — {artist}")
+
+                    query = f"{title} {artist}"
+                    results = self.ytmusic.search(query, filter="videos")
+
+                    if not results:
+                        self._log_migration(path, title, artist, "skipped", "no_match")
+                        log_queue.put("[SKIP] No YouTube match")
+                        continue
+
+                    matches = self.filter_song_matches(results, title, artist)
+
+                    cleaned = [
+                        self.serialize_song(score, r)
+                        for score, r in matches
+                        if score >= match_threshold
+                    ]
+
+                    if len(cleaned) == 1:
+                        log_queue.put(f"[SCANED] {cleaned}")
+                        self._apply_migration(path, cleaned[0]["videoId"], log_queue)
+                    elif len(cleaned) > 1:
+                        if fallback == "manual":
+                            log_queue.put("[CHOICE_REQUIRED]")
+
+                            choice_event = threading.Event()
+                            self.migration_choices[migration_id] = {
+                                "event": choice_event,
+                                "selected": None,
+                            }
+
+                            log_queue.put(
+                                json.dumps(
+                                    {
+                                        "type": "choice",
+                                        "file": path,
+                                        "title": title,
+                                        "artist": artist,
+                                        "candidates": cleaned[:5],
+                                    }
+                                )
+                            )
+
+                            choice_event.wait()
+
+                            selected = self.migration_choices[migration_id]["selected"]
+                            del self.migration_choices[migration_id]
+
+                            if selected:
+                                self._apply_migration(path, selected, log_queue)
+                            else:
+                                log_queue.put("[SKIP] User skipped")
+
+                            continue
+
+                        self._log_migration(
+                            path,
+                            title,
+                            artist,
+                            "ambiguous",
+                            "multiple_matches",
+                            candidates=cleaned[:5],
+                        )
+                        log_queue.put("[AMBIGUOUS] Multiple candidates found")
+                    else:
+                        log_queue.put(f"[SCANED] {matches}")
+
+                        self._log_migration(
+                            path, title, artist, "skipped", "low_confidence"
+                        )
+
+                except Exception as e:
+                    log_queue.put(f"[ERROR] {filename}: {str(e)}")
+
+        log_queue.put("[MIGRATION] Completed")
+        log_queue.put("[END]")
+
+    def serialize_song(self, score, r):
+        thumbs = r.get("thumbnails") or []
+
+        thumb_url = None
+
+        if thumbs:
+            # pick medium size if available, else first
+            thumb_url = thumbs[-1].get("url")
+        return {
+            "score": round(score, 3),
+            "title": r.get("title"),
+            "artists": [a["name"] for a in r.get("artists", [])],
+            "videoId": r.get("videoId"),
+            "thumbnail": thumb_url,
+        }
+
+    def get_audio_metadata(self, path):
+        try:
+            audio = MutagenFile(path, easy=True)
+            if not audio:
+                raise Exception("Unsupported format")
+
+            def tag(name):
+                return audio.get(name, [None])[0]
+
+            # MP3 (ID3)
+            if path.lower().endswith(".mp3"):
+                try:
+                    id3 = ID3(path)
+                except Exception:
+                    pass
+
+            return {
+                "title": tag("title") or os.path.splitext(os.path.basename(path))[0],
+                "artist": tag("artist") or "Unknown Artist",
+            }
+
+        except Exception:
+            return None
+
+    def title_similarity(self, a, b):
+        return SequenceMatcher(None, a, b).ratio()
+
+    def filter_song_matches(self, results, target_title, target_artist):
+        target_title_n = target_title
+        target_artist_n = target_artist.lower()
+
+        scored = []
+
+        for r in results:
+            artists = " ".join(a["name"].lower() for a in r.get("artists", []))
+            if target_artist_n not in artists:
+                continue
+
+            result_title_n = r.get("title", "")
+            score = self.title_similarity(target_title_n, result_title_n)
+
+            scored.append((score, r))
+
+        # Sort best first
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        return scored
+
+    def _apply_migration(self, path, video_id, log_queue):
+        base, ext = os.path.splitext(path)
+
+        if base.endswith(video_id):
+            log_queue.put("[SKIP] Already migrated")
+            return
+
+        new_path = f"{base}_{video_id}{ext}"
+
+        if os.path.exists(new_path):
+            log_queue.put("[SKIP] Target file exists")
+            return
+
+        os.rename(path, new_path)
+
+        self._log_migration(
+            path,
+            None,
+            None,
+            "migrated",
+            "success",
+            new_path=new_path,
+            video_id=video_id,
+        )
+
+        log_queue.put(f"[RENAMED] {os.path.basename(new_path)}")
+
+    def _log_migration(
+        self,
+        file_path,
+        title,
+        artist,
+        status,
+        reason,
+        new_path=None,
+        video_id=None,
+        candidates=None,
+    ):
+        if not self.migration_logger:
+            return
+        entry = {
+            "file": file_path,
+            "new_file": new_path,
+            "title": title,
+            "artist": artist,
+            "video_id": video_id,
+            "status": status,
+            "reason": reason,
+            "candidates": candidates,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        self.migration_logger.log_migration(entry)
+
+    def _log_history(
+        self,
+        is_playlist,
+        playlist_title,
+        url,
+        output_file,
+        artist,
+        lrc_file,
+        quality,
+        codec,
+        status,
+    ):
         """Create history log entry"""
         if not self.history_logger:
             return
-        
+
         history_entry = {
-            'type': 'playlist' if is_playlist else 'single',
-            'playlist_title': playlist_title if is_playlist else 'No Playlist',
-            'url': url,
-            'title': os.path.basename(output_file),
-            'artist': artist,
-            'file_path': output_file,
-            'lyrics_path': lrc_file if lrc_file and os.path.exists(lrc_file) else 'No Lyrics',
-            'timestamp': datetime.now().isoformat(),
-            'quality': quality,
-            'format': codec,
-            'status': status
+            "type": "playlist" if is_playlist else "single",
+            "playlist_title": playlist_title if is_playlist else "No Playlist",
+            "url": url,
+            "title": os.path.basename(output_file),
+            "artist": artist,
+            "file_path": output_file,
+            "lyrics_path": lrc_file
+            if lrc_file and os.path.exists(lrc_file)
+            else "No Lyrics",
+            "timestamp": datetime.now().isoformat(),
+            "quality": quality,
+            "format": codec,
+            "status": status,
         }
-        
+
         self.history_logger.log_download(history_entry)
 
-    def _log_fail(self, is_playlist, playlist_title, index,  url, 
-                     quality, codec, status):
+    def _log_fail(
+        self, is_playlist, playlist_title, index, url, quality, codec, status
+    ):
         """Create Fail log entry"""
         if not self.fail_logger:
             return
-        
-        fail_entry = {
-            'type': 'playlist' if is_playlist else 'single',
-            'playlist_title': playlist_title if is_playlist else 'No Playlist',
-            'index': index,
-            'url': url,
-            'timestamp': datetime.now().isoformat(),
-            'quality': quality,
-            'format': codec,
-            'status': status
-        }
-        
-        self.fail_logger.log_fail(fail_entry)
 
+        fail_entry = {
+            "type": "playlist" if is_playlist else "single",
+            "playlist_title": playlist_title if is_playlist else "No Playlist",
+            "index": index,
+            "url": url,
+            "timestamp": datetime.now().isoformat(),
+            "quality": quality,
+            "format": codec,
+            "status": status,
+        }
+
+        self.fail_logger.log_fail(fail_entry)
 
     def get_logs(self, download_id):
         """Get logs for a specific download"""
         queue = self.log_queues.get(download_id)
         if not queue:
             return
-        
+
         while True:
             try:
                 # Block for a short time to wait for new messages

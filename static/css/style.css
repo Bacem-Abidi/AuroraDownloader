@@ -1437,3 +1437,66 @@ input[type="range"] {
   margin-top: 7px;
   padding: 8px 10px;
 }
+
+/* List */
+.match-list {
+  padding: 8px;
+  overflow-y: auto;
+}
+
+/* Item */
+.match-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.match-item:hover {
+  background: rgba(31, 197, 197, 0.2);
+}
+
+/* Thumbnail */
+.match-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #333;
+}
+
+/* Text */
+.match-meta {
+  flex: 1;
+}
+
+.match-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.match-artists {
+  font-size: 12px;
+  color: #aaa;
+}
+
+/* Score */
+.match-score {
+  font-size: 12px;
+  color: #4caf50;
+  white-space: nowrap;
+}
+
+/* Footer */
+.modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: right;
+}

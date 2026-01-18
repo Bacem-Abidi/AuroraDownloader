@@ -44,6 +44,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const threshold = document.getElementById("strong-match-threshold-default");
   const valueLabel = document.getElementById("threshold-value-default");
 
+  const migrateBtn = document.getElementById("start-migration-btn");
+
   threshold.addEventListener("input", () => {
     valueLabel.textContent = threshold.value + "%";
   });
@@ -488,6 +490,60 @@ document.addEventListener("DOMContentLoaded", () => {
     mpdOutput.textContent = output;
   }
 
+  const modal = document.getElementById("match-modal");
+  const list = document.getElementById("match-list");
+  const desc = document.getElementById("match-modal-desc");
+  const skipBtn = document.getElementById("skip-match");
+  const overlay = document.getElementById("modal-overlay");
+
+  function showMatchModal(payload, migrationId) {
+    modal.classList.remove("hidden");
+    overlay.classList.remove("hidden", "closing");
+
+    list.innerHTML = "";
+
+    desc.textContent = `${payload.title} — ${payload.artist}`;
+
+    payload.candidates.forEach((c) => {
+      const btn = document.createElement("button");
+      btn.className = "match-item";
+
+      btn.innerHTML = `
+      <img
+        class="match-thumb"
+        src="${c.thumbnail || ""}"
+        alt=""
+        loading="lazy"
+      />
+
+      <div class="match-meta">
+        <div class="match-title">${c.title}</div>
+        <div class="match-artists">${c.artists.join(", ")}</div>
+      </div>
+
+      <div class="match-score">
+        ${Math.round(c.score * 100)}%
+      </div>
+    `;
+
+      btn.onclick = () => submitChoice(migrationId, c.videoId);
+      list.appendChild(btn);
+    });
+
+    skipBtn.onclick = () => submitChoice(migrationId, null);
+  }
+
+  async function submitChoice(migrationId, videoId) {
+    await fetch("/migrate/choice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ migration_id: migrationId, video_id: videoId }),
+    });
+
+    modal.classList.add("hidden");
+    overlay.classList.add("hidden");
+  }
+
   // Start listening to the log stream
   function startLogStream(downloadId) {
     closeEventSource();
@@ -495,6 +551,14 @@ document.addEventListener("DOMContentLoaded", () => {
     eventSource = new EventSource(`/logs/${downloadId}`);
 
     eventSource.onmessage = (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        if (parsed.type === "choice") {
+          showMatchModal(parsed, downloadId);
+          return;
+        }
+      } catch (_) {}
+
       const message = event.data;
 
       const playlistMatch = message.match(
@@ -511,6 +575,8 @@ document.addEventListener("DOMContentLoaded", () => {
         closeEventSource();
         downloadBtn.disabled = false;
         downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download';
+        migrateBtn.disabled = false;
+        migrateBtn.innerHTML = '<i class="fas fa-random"></i> Start Migration';
         enableManagementTab();
       } else {
         addLog(message);
@@ -523,6 +589,8 @@ document.addEventListener("DOMContentLoaded", () => {
       closeEventSource();
       downloadBtn.disabled = false;
       downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download';
+      migrateBtn.disabled = false;
+      migrateBtn.innerHTML = '<i class="fas fa-random"></i> Start Migration';
       enableManagementTab();
     };
   }
@@ -541,6 +609,17 @@ document.addEventListener("DOMContentLoaded", () => {
     logOutput.innerHTML = "";
     addLog("[INFO] Logs cleared", "info");
   });
+
+  window.App = {
+    addLog,
+    startLogStream,
+    closeEventSource,
+    disableManagementTab,
+    enableManagementTab,
+    getCurrentDownloadId: () => currentDownloadId,
+    setCurrentDownloadId: (id) => (currentDownloadId = id),
+    logOutput,
+  };
 });
 
 function toggleCollapse(header) {
