@@ -834,23 +834,35 @@ class DownloadManager:
 
     def filter_song_matches(self, results, target_title, target_artist):
         target_title_n = target_title
-        target_artist_n = target_artist.lower()
-
+        
+        # Split artists by commas and normalize
+        target_artist_parts = [p.strip().lower() for p in target_artist.split(",")]
+        
         scored = []
 
         for r in results:
-            artists = " ".join(a["name"].lower() for a in r.get("artists", []))
-            if target_artist_n not in artists:
+            # Get all artist names from result
+            result_artists = [a["name"].lower() for a in r.get("artists", [])]
+            
+            # Calculate how many target artist parts match
+            matching_parts = sum(1 for part in target_artist_parts 
+                                if any(part in artist or artist in part 
+                                    for artist in result_artists))
+            
+            # Require at least one artist to match (or adjust threshold)
+            if matching_parts == 0:
                 continue
-
+            
             result_title_n = r.get("title", "")
             score = self.title_similarity(target_title_n, result_title_n)
+            
+            # Bonus for more artist matches
+            artist_match_ratio = matching_parts / len(target_artist_parts)
+            adjusted_score = score * (0.7 + 0.3 * artist_match_ratio)  # Weighted
+            
+            scored.append((adjusted_score, r))
 
-            scored.append((score, r))
-
-        # Sort best first
         scored.sort(key=lambda x: x[0], reverse=True)
-
         return scored
 
     def _apply_migration(self, lyrics_dir, playlist_dir, path, video_id, log_queue):

@@ -460,6 +460,7 @@ def library():
         audio_dir = request.args.get("dir")
         offset = int(request.args.get("offset", 0))
         limit = int(request.args.get("limit", 30))
+        reset = request.args.get("reset", "false").lower() == "true"
 
         if not audio_dir:
             return jsonify({"error": "Missing audio directory"}), 400
@@ -468,6 +469,11 @@ def library():
 
         if not os.path.isdir(audio_dir):
             return jsonify({"error": "Invalid audio directory"}), 400
+
+
+        # Clear cache if reset requested
+        if reset and audio_dir in LIBRARY_CACHE:
+            del LIBRARY_CACHE[audio_dir]
 
         # Scan once and cache
         if audio_dir not in LIBRARY_CACHE:

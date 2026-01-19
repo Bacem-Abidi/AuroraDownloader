@@ -176,7 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const prefs = await (await fetch("/preferences")).json();
           audioDir = prefs.audioDir;
         }
-        endpoint = `/library?dir=${encodeURIComponent(audioDir)}&offset=${offset}&limit=${limit}`;
+        endpoint = `/library?dir=${encodeURIComponent(audioDir)}&offset=${offset}&limit=${limit}&reset=${reset}`;
       }
 
       const res = await fetch(endpoint);
