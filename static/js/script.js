@@ -496,10 +496,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const skipBtn = document.getElementById("skip-match");
   const overlay = document.getElementById("modal-overlay");
 
+  function getConfidence(scorePerc) {
+    if (scorePerc >= 85) {
+      return { label: "STRONG", class: "conf-strong" };
+    }
+    if (scorePerc >= 65) {
+      return { label: "GOOD", class: "conf-good" };
+    }
+    return { label: "WEAK", class: "conf-weak" };
+  }
+
   function showMatchModal(payload, migrationId) {
     modal.classList.remove("hidden");
     overlay.classList.remove("hidden", "closing");
-
     list.innerHTML = "";
 
     desc.textContent = `${payload.title} — ${payload.artist}`;
@@ -507,37 +516,42 @@ document.addEventListener("DOMContentLoaded", () => {
     payload.candidates.forEach((c) => {
       const btn = document.createElement("button");
       btn.className = "match-item";
+      btn.onclick = () => submitChoice(migrationId, "select", c.videoId);
 
       btn.innerHTML = `
-      <img
-        class="match-thumb"
-        src="${c.thumbnail || ""}"
-        alt=""
-        loading="lazy"
-      />
-
+      <img class="match-thumb" src="${c.thumbnail}">
       <div class="match-meta">
         <div class="match-title">${c.title}</div>
         <div class="match-artists">${c.artists.join(", ")}</div>
       </div>
-
-      <div class="match-score">
-        ${Math.round(c.score * 100)}%
+      <div class="match-right">
+        <span class="confidence-badge conf-${c.score >= 0.85 ? "strong" : "good"}">
+          ${c.score >= 0.85 ? "STRONG" : "GOOD"}
+        </span>
+        <span class="match-score">
+          ${Math.round(c.score * 100)}%
+        </span>
       </div>
     `;
-
-      btn.onclick = () => submitChoice(migrationId, c.videoId);
       list.appendChild(btn);
     });
 
-    skipBtn.onclick = () => submitChoice(migrationId, null);
+    skipBtn.onclick = () => submitChoice(migrationId, "skip");
+
+    const researchBtn = document.getElementById("research-songs");
+    researchBtn.style.display = payload.allow_research ? "inline-flex" : "none";
+    researchBtn.onclick = () => submitChoice(migrationId, "research_songs");
   }
 
-  async function submitChoice(migrationId, videoId) {
+  async function submitChoice(migrationId, action, videoId = null) {
     await fetch("/migrate/choice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ migration_id: migrationId, video_id: videoId }),
+      body: JSON.stringify({
+        migration_id: migrationId,
+        action,
+        video_id: videoId,
+      }),
     });
 
     modal.classList.add("hidden");

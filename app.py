@@ -158,7 +158,10 @@ def start_download():
 def start_migration():
     data = request.get_json()
     audio_dir = data.get("audio_dir", "Downloads")
+    lyrics_dir = data.get("lyrics_dir", "Downloads/lyrics")
+    playlist_dir = data.get("playlist_dir", "Downloads/playlists")
     match_perc = data.get("match_perc", "85")
+    fallback = data.get("fallback", "manual")
 
     # Expand paths and convert to absolute paths
     def expand_path(path):
@@ -168,6 +171,8 @@ def start_migration():
         return os.path.abspath(expanded)
 
     audio_dir = expand_path(audio_dir)
+    lyrics_dir = expand_path(lyrics_dir)
+    playlist_dir = expand_path(playlist_dir)
 
     os.makedirs(audio_dir, exist_ok=True)
 
@@ -177,7 +182,13 @@ def start_migration():
     migration_id = str(uuid.uuid4())
 
     download_manager.start_migration(
-        migration_id, audio_dir, match_perc, "manual", migrate_dir
+        migration_id,
+        audio_dir,
+        lyrics_dir,
+        playlist_dir,
+        match_perc,
+        fallback,
+        migrate_dir,
     )
 
     return jsonify({"migration_id": migration_id})
@@ -188,13 +199,15 @@ def migrate_choice():
     data = request.get_json()
     migration_id = data["migration_id"]
     video_id = data.get("video_id")  # None = skip
+    action = data["action"]
 
     mgr = download_manager
 
     if migration_id not in mgr.migration_choices:
         return jsonify({"error": "No pending choice"}), 400
 
-    mgr.migration_choices[migration_id]["selected"] = video_id
+    mgr.migration_choices[migration_id]["action"] = action
+    mgr.migration_choices[migration_id]["video_id"] = video_id
     mgr.migration_choices[migration_id]["event"].set()
 
     return jsonify({"status": "ok"})

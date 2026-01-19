@@ -46,6 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   migrateBtn.addEventListener("click", async () => {
     const match_perc = matchThresholdInput.value;
+    const fallback = fallbackInput.value;
     const audioDir = audioDirInput.value || "Downloads";
     const lyricsDir = lyricsDirInput.value || "Lyrics";
     const playlistDir = playlistDirInput.value || "Playlists";
@@ -79,6 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
           lyrics_dir: lyricsDir,
           playlist_dir: playlistDir,
           match_perc: match_perc,
+          fallback: fallback,
         }),
       });
 
