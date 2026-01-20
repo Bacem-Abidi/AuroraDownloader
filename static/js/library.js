@@ -282,9 +282,10 @@ document.addEventListener("DOMContentLoaded", () => {
         ? "library-row library-item-row is-failed"
         : "library-row library-item-row is-library";
 
+      const safePath = isFailed ? entry.path : entry.path.replace(/\\/g, "/");
       const artwork = entry.hasArtwork
         ? `<img class="track-artwork"
-          src="/artwork?path=${encodeURIComponent(entry.path)}"
+          src="/artwork?path=${encodeURIComponent(safePath)}"
           loading="lazy"
           onerror="this.replaceWith(document.createTextNode('▶'))">`
         : "▶";

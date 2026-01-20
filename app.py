@@ -470,7 +470,6 @@ def library():
         if not os.path.isdir(audio_dir):
             return jsonify({"error": "Invalid audio directory"}), 400
 
-
         # Clear cache if reset requested
         if reset and audio_dir in LIBRARY_CACHE:
             del LIBRARY_CACHE[audio_dir]
@@ -483,6 +482,7 @@ def library():
                     if f.lower().endswith(AUDIO_EXTENSIONS):
                         files.append(os.path.join(root, f))
 
+            files.sort(key=lambda p: os.path.basename(p).lower())
             LIBRARY_CACHE[audio_dir] = files
 
         all_files = LIBRARY_CACHE[audio_dir]

@@ -480,6 +480,24 @@ document.addEventListener("DOMContentLoaded", () => {
     progressBar.style.width = `${percentage}%`;
   }
 
+  function updateMigrateProgress(current, total, title) {
+    const migrateStatus = document.getElementById("migration-status");
+    const migrateProgressText = document.getElementById(
+      "migration-progress-text",
+    );
+    const migrateProgressBar = document.getElementById(
+      "migration-progress-bar",
+    );
+    const migrateTitleElement = document.getElementById("migrate-title");
+
+    migrateStatus.style.display = "block";
+    migrateProgressText.textContent = `${current}/${total}`;
+    migrateTitleElement.textContent = title || "Untitled Playlist";
+
+    const percentage = total > 0 ? (current / total) * 100 : 0;
+    migrateProgressBar.style.width = `${percentage}%`;
+  }
+
   function updateMpdStatus(message, output = "") {
     const mpdStatus = document.getElementById("mpd-status");
     const mpdStatusText = document.getElementById("mpd-status-text");
@@ -506,6 +524,28 @@ document.addEventListener("DOMContentLoaded", () => {
     return { label: "WEAK", class: "conf-weak" };
   }
 
+  function extractVideoId(input) {
+    // raw ID
+    if (/^[a-zA-Z0-9_-]{11}$/.test(input)) {
+      return input;
+    }
+
+    try {
+      const url = new URL(input);
+      if (
+        url.hostname.includes("youtube.com") ||
+        url.hostname.includes("music.youtube.com")
+      ) {
+        return url.searchParams.get("v");
+      }
+      if (url.hostname === "youtu.be") {
+        return url.pathname.slice(1);
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
   function showMatchModal(payload, migrationId) {
     modal.classList.remove("hidden");
     overlay.classList.remove("hidden", "closing");
@@ -528,7 +568,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <span class="confidence-badge conf-${c.score >= 0.85 ? "strong" : "good"}">
           ${c.score >= 0.85 ? "STRONG" : "GOOD"}
         </span>
-        <span class="match-score">
+        <span class="match-score conf-${c.score >= 0.85 ? "strong" : "good"}">
           ${Math.round(c.score * 100)}%
         </span>
       </div>
@@ -538,9 +578,53 @@ document.addEventListener("DOMContentLoaded", () => {
 
     skipBtn.onclick = () => submitChoice(migrationId, "skip");
 
-    const researchBtn = document.getElementById("research-songs");
-    researchBtn.style.display = payload.allow_research ? "inline-flex" : "none";
-    researchBtn.onclick = () => submitChoice(migrationId, "research_songs");
+    console.log(payload);
+
+    const manualWrapper = document.getElementById("manual-video-wrapper");
+    const manualInput = document.getElementById("manual-video-id");
+    const manualSubmit = document.getElementById("manual-submit");
+
+    /* reset */
+    manualWrapper.classList.add("hidden");
+    manualInput.value = "";
+    manualSubmit.onclick = null;
+
+    const researchSongsBtn = document.getElementById("research-songs");
+    const researchVideosBtn = document.getElementById("research-videos");
+
+    researchSongsBtn.style.display = "none";
+    researchVideosBtn.style.display = "none";
+    researchSongsBtn.onclick = null;
+    researchVideosBtn.onclick = null;
+
+    if (payload.allow_research) {
+      if (payload.search_filter === "songs") {
+        researchVideosBtn.style.display = "inline-flex";
+        researchVideosBtn.onclick = () =>
+          submitChoice(migrationId, "research_videos");
+      } else {
+        researchSongsBtn.style.display = "inline-flex";
+        researchSongsBtn.onclick = () =>
+          submitChoice(migrationId, "research_songs");
+      }
+    }
+    /* show manual option when allowed */
+    if (payload.allow_manual) {
+      manualWrapper.classList.remove("hidden");
+
+      manualSubmit.onclick = () => {
+        const value = manualInput.value.trim();
+        if (!value) return;
+
+        const videoId = extractVideoId(value);
+        if (!videoId) {
+          alert("Invalid YouTube URL or video ID");
+          return;
+        }
+
+        submitChoice(migrationId, "manual", videoId);
+      };
+    }
   }
 
   async function submitChoice(migrationId, action, videoId = null) {
@@ -578,11 +662,20 @@ document.addEventListener("DOMContentLoaded", () => {
       const playlistMatch = message.match(
         /\[PLAYLIST\] Downloading video (\d+)\/(\d+): (.+)/,
       );
+      const migrateMatch = message.match(
+        /\[MIGRATE\] Migrating File (\d+)\/(\d+): (.+)/,
+      );
       if (playlistMatch) {
         const current = parseInt(playlistMatch[1]);
         const total = parseInt(playlistMatch[2]);
         const title = playlistMatch[3];
         updatePlaylistProgress(current, total, title);
+      }
+      if (migrateMatch) {
+        const migrateCurrent = parseInt(migrateMatch[1]);
+        const migrateTotal = parseInt(migrateMatch[2]);
+        const migrateTitle = migrateMatch[3];
+        updateMigrateProgress(migrateCurrent, migrateTotal, migrateTitle);
       }
       if (message === "[END]") {
         // Download completed

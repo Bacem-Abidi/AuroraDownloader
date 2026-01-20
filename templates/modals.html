@@ -11,13 +11,27 @@
     <div id="match-list" class="match-list"></div>
 
     <div class="modal-footer">
-      <button id="skip-match" class="btn btn-secondary">
-        Skip this track
-      </button>
-      <button id="research-songs" class="btn btn-secondary">
-        Search as Song
-      </button>
-
+      <div  class="actions">
+        <button id="skip-match" class="btn btn-secondary">
+          Skip this track
+        </button>
+        <button id="research-songs" class="btn btn-secondary" style="display:none;">
+          Search as Song
+        </button>
+        <button id="research-videos" class="btn btn-secondary" style="display:none;">
+          Search as video
+        </button>
+      </div>
+      <div id="manual-video-wrapper" class="manual-video hidden">
+        <input
+          id="manual-video-id"
+          type="text"
+          placeholder="Paste YouTube video ID or URL"
+        />
+        <button id="manual-submit" class="btn btn-primary">
+          Use video
+        </button>
+      </div>
     </div>
   </div>
 </div>

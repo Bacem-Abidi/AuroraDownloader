@@ -1405,7 +1405,6 @@ details summary {
   display: flex;
 }
 
-
 /* Remove default appearance */
 input[type="range"] {
   -webkit-appearance: none; /* Chrome, Safari, Edge */
@@ -1568,6 +1567,12 @@ input[type="range"] {
   text-align: right;
   display: flex;
   justify-content: space-between;
+  flex-direction: column;
+}
+
+.modal-footer .actions {
+  display: flex;
+  justify-content: space-between;
 }
 
 /* Right side */
@@ -1619,4 +1624,18 @@ input[type="range"] {
 
 .confidence-badge.conf-weak {
   background: rgba(239, 83, 80, 0.15);
+}
+
+.manual-video {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.manual-video.hidden {
+  display: none;
+}
+
+.manual-video input {
+  flex: 1;
 }
