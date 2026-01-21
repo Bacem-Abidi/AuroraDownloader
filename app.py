@@ -7,6 +7,7 @@ import json
 import base64
 import posixpath
 from pathlib import Path
+import fail
 from flask_sse import sse
 from mutagen.mp4 import MP4
 from mutagen.flac import FLAC
@@ -31,6 +32,14 @@ app = Flask(__name__)
 app.config["REDIS_URL"] = "redis://localhost"  # For production, use a real Redis server
 app.register_blueprint(sse, url_prefix="/stream")
 Bootstrap5(app)
+
+
+# Expand paths and convert to absolute paths
+def expand_path(path):
+    # Handle ~ and relative paths
+    expanded = os.path.expanduser(path)
+    # Convert to absolute path
+    return os.path.abspath(expanded)
 
 
 @app.route("/")
@@ -97,13 +106,6 @@ def start_download():
     overwrite = data.get("overwrite", False)
     resume = data.get("resume", False)
 
-    # Expand paths and convert to absolute paths
-    def expand_path(path):
-        # Handle ~ and relative paths
-        expanded = os.path.expanduser(path)
-        # Convert to absolute path
-        return os.path.abspath(expanded)
-
     audio_dir = expand_path(audio_dir)
     lyrics_dir = expand_path(lyrics_dir)
     playlist_dir = expand_path(playlist_dir)
@@ -154,6 +156,41 @@ def start_download():
     )
 
 
+@app.route("/failed/retry", methods=["POST"])
+def retry_failed():
+    data = request.get_json()
+    entry = data.get("entry")
+    audio_dir = data.get("audio_dir", "Downloads")
+    lyrics_dir = data.get("lyrics_dir", "Downloads/lyrics")
+    playlist_dir = data.get("playlist_dir", "Downloads/playlists")
+
+    audio_dir = expand_path(audio_dir)
+    lyrics_dir = expand_path(lyrics_dir)
+    playlist_dir = expand_path(playlist_dir)
+
+    if not entry or "url" not in entry:
+        return jsonify({"error": "Invalid failed entry"}), 400
+
+    download_id = f"retry-{int(time.time() * 1000)}"
+
+    fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
+
+    try:
+        download_manager.retry_failed_entry(
+            failed_entry=entry,
+            download_id=download_id,
+            audio_dir=audio_dir,
+            lyrics_dir=lyrics_dir,
+            playlist_dir=playlist_dir,
+            fail_dir=fail_dir,
+            overwrite=False,
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"status": "started", "download_id": download_id})
+
+
 @app.route("/migrate/start", methods=["POST"])
 def start_migration():
     data = request.get_json()
@@ -162,13 +199,6 @@ def start_migration():
     playlist_dir = data.get("playlist_dir", "Downloads/playlists")
     match_perc = data.get("match_perc", "85")
     fallback = data.get("fallback", "manual")
-
-    # Expand paths and convert to absolute paths
-    def expand_path(path):
-        # Handle ~ and relative paths
-        expanded = os.path.expanduser(path)
-        # Convert to absolute path
-        return os.path.abspath(expanded)
 
     audio_dir = expand_path(audio_dir)
     lyrics_dir = expand_path(lyrics_dir)

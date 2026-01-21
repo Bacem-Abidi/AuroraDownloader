@@ -979,6 +979,7 @@ details summary {
 
 .library-row.is-failed {
   grid-template-columns:
+    24px
     24px /* icon */
     3fr /* URL */
     2fr /* video id */
@@ -1638,4 +1639,9 @@ input[type="range"] {
 
 .manual-video input {
   flex: 1;
+}
+.col-check input[type="checkbox"] {
+  width: 18px;
+  margin: 0;
+  accent-color: var(--highlight);
 }

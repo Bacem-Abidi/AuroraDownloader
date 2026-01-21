@@ -1,4 +1,14 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const {
+    addLog,
+    startLogStream,
+    closeEventSource,
+    disableManagementTab,
+    enableManagementTab,
+    logOutput,
+    getCurrentDownloadId,
+    setCurrentDownloadId,
+  } = window.App;
   const container = document.getElementById("library-body");
   const searchInput = document.getElementById("library-search");
   const filterSelect = document.getElementById("library-filter");
@@ -20,6 +30,9 @@ document.addEventListener("DOMContentLoaded", () => {
     `,
 
     failed: `
+      <div class="col-check">
+        <input type="checkbox" id="select-all-failed">
+      </div>
       <div class="col-icon">⚠</div>
       <div class="col-url">URL</div>
       <div class="col-vidId">video ID</div>
@@ -40,9 +53,11 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentSource = "all";
   let playlistDir = null;
   let audioDir = null;
+  let lyricsDir = null;
   let mode = "library"; // "library" | "playlist"
   let currentPlaylist = null;
   let totalCount = 0;
+  let activeFailedEntry = null;
 
   function updateGridMode(source) {
     const header = document.getElementById("library-row-header");
@@ -53,8 +68,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadPlaylists() {
     try {
-      const prefs = await (await fetch("/preferences")).json();
-      playlistDir = prefs.playlistDir;
+      if (!playlistDir) {
+        const prefs = await (await fetch("/preferences")).json();
+        playlistDir = prefs.playlistDir;
+      }
 
       const res = await fetch(
         `/playlists?dir=${encodeURIComponent(playlistDir)}`,
@@ -79,6 +96,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function updateBulkActions() {
+    const bulk = document.getElementById("retry-bulk-btn");
+    bulk.classList.toggle("hidden", currentSource !== "failed");
+  }
+
   function selectSource(source) {
     mode = "library";
     currentPlaylist = null;
@@ -97,6 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
       libraryMeta.textContent = "";
       header.innerHTML = HEADERS.failed;
     }
+    updateBulkActions();
 
     loadLibrary(true, source);
   }
@@ -175,6 +198,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!audioDir) {
           const prefs = await (await fetch("/preferences")).json();
           audioDir = prefs.audioDir;
+          playlistDir = prefs.playlistDir;
+          lyricsDir = prefs.lyricsDir;
         }
         endpoint = `/library?dir=${encodeURIComponent(audioDir)}&offset=${offset}&limit=${limit}&reset=${reset}`;
       }
@@ -292,6 +317,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (isFailed) {
         row.innerHTML = `
+        <div class="col-check">
+          <input type="checkbox" class="retry-check">
+        </div>
         <div class="col-icon">⚠</div>
         <div class="col-url">${entry.url}</div>
         <div class="col-vidId">${entry.id}</div>
@@ -489,6 +517,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (isFailed) {
+      activeFailedEntry = entry;
+
       failedFields.url.textContent = entry.url;
       failedFields.playlist.textContent = entry.playlist || "—";
       failedFields.index.textContent = entry.index ?? "—";
@@ -537,7 +567,16 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
-  overlay.addEventListener("click", closeModal);
+  overlay.addEventListener("click", () => {
+    const retryModal = document.getElementById("retry-modal");
+
+    if (!retryModal.classList.contains("hidden")) {
+      closeRetryModal();
+      return;
+    }
+
+    closeModal(); // existing info/failed modal closer
+  });
 
   document.addEventListener("click", (e) => {
     if (e.target.closest(".modal-close")) {
@@ -564,6 +603,139 @@ document.addEventListener("DOMContentLoaded", () => {
       .catch((err) => {
         showToast("Failed to copy:", err);
       });
+  });
+
+  document.addEventListener("change", (e) => {
+    if (e.target.id === "select-all-failed") {
+      document
+        .querySelectorAll(".retry-check")
+        .forEach((cb) => (cb.checked = e.target.checked));
+    }
+  });
+
+  function getSelectedFailedEntries() {
+    return [...document.querySelectorAll(".library-row.is-failed")]
+      .filter((row) => row.querySelector(".retry-check")?.checked)
+      .map((row) => JSON.parse(row.dataset.entry));
+  }
+
+  document.getElementById("retry-bulk-btn").addEventListener("click", () => {
+    const selected = getSelectedFailedEntries();
+
+    if (selected.length > 0) {
+      retryEntries(selected);
+    } else {
+      openRetryModal();
+    }
+  });
+  document
+    .getElementById("retry-modal-close")
+    .addEventListener("click", closeRetryModal);
+
+  function populateRetryPlaylists() {
+    const select = document.getElementById("retry-playlist-select");
+    const playlists = [
+      ...new Set(library.map((e) => e.playlist).filter(Boolean)),
+    ];
+
+    select.innerHTML = playlists
+      .map((p) => `<option value="${p}">${p}</option>`)
+      .join("");
+  }
+
+  function openRetryModal() {
+    populateRetryPlaylists();
+    document.getElementById("retry-modal").classList.remove("hidden");
+    overlay.classList.remove("hidden");
+  }
+  function closeRetryModal() {
+    const modal = document.getElementById("retry-modal");
+
+    modal.classList.add("closing");
+    overlay.classList.add("closing");
+
+    modal.addEventListener(
+      "animationend",
+      () => {
+        modal.classList.remove("closing");
+        overlay.classList.remove("closing");
+
+        modal.classList.add("hidden");
+        overlay.classList.add("hidden");
+      },
+      { once: true },
+    );
+  }
+
+  document.getElementById("retry-all-btn").onclick = () => {
+    retryEntries(library);
+  };
+
+  document.getElementById("retry-playlist-btn").onclick = () => {
+    const playlist = document.getElementById("retry-playlist-select").value;
+    const entries = library.filter((e) => e.playlist === playlist);
+    retryEntries(entries);
+  };
+
+  async function retryEntries(entries) {
+    if (!entries.length) return;
+
+    showToast(`Retrying ${entries.length} entries…`);
+
+    // const res = await fetch("/failed/retry/bulk", {
+    //   method: "POST",
+    //   headers: { "Content-Type": "application/json" },
+    //   body: JSON.stringify({
+    //     entries,
+    //     audio_dir: audioDir,
+    //     lyrics_dir: lyricsDir,
+    //     playlist_dir: playlistDir,
+    //   }),
+    // });
+    //
+    // const data = await res.json();
+    //
+    // if (data.download_id) {
+    //   setCurrentDownloadId(data.download_id);
+    //   startLogStream(getCurrentDownloadId());
+    // }
+  }
+
+  document.querySelector(".retry-btn").addEventListener("click", async () => {
+    if (!activeFailedEntry) return;
+
+    try {
+      showToast("Retrying download…");
+
+      const res = await fetch("/failed/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entry: activeFailedEntry,
+          audio_dir: audioDir,
+          lyrics_dir: lyricsDir,
+          playlist_dir: playlistDir,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Retry failed");
+      }
+      if (data.download_id) {
+        setCurrentDownloadId(data.download_id);
+        startLogStream(getCurrentDownloadId());
+      } else {
+        throw new Error("Retry failed");
+      }
+
+      showToast("Retry started");
+
+      closeModal();
+    } catch (e) {
+      showToast(e.message);
+    }
   });
 
   function showToast(message) {

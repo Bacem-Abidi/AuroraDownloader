@@ -50,6 +50,189 @@ class DownloadManager:
 
         self.migration_choices = {}
 
+    def retry_failed_entry(
+        self,
+        failed_entry,
+        download_id,
+        audio_dir,
+        lyrics_dir,
+        playlist_dir,
+        fail_dir,
+        overwrite=False,
+    ):
+        """
+        Retry a single failed download entry
+        """
+        log_queue = Queue()
+        self.log_queues[download_id] = log_queue
+        self.active_downloads[download_id] = True
+
+        thread = threading.Thread(
+            target=self._retry_failed_thread,
+            args=(
+                failed_entry,
+                download_id,
+                log_queue,
+                audio_dir,
+                lyrics_dir,
+                playlist_dir,
+                fail_dir,
+                overwrite,
+            ),
+            daemon=True,
+        )
+        thread.start()
+
+    def _retry_failed_thread(
+        self,
+        entry,
+        download_id,
+        log_queue,
+        audio_dir,
+        lyrics_dir,
+        playlist_dir,
+        fail_dir,
+        overwrite,
+    ):
+        if fail_dir:
+            self.fail_logger = FailLogger(fail_dir)
+        try:
+            url = entry["url"]
+            quality = entry.get("quality", "best")
+            codec = entry.get("format", "mp3")
+            playlist_title = entry.get("playlist")
+            index = entry.get("index")
+            is_playlist = entry.get("type") == "playlist"
+
+            log_queue.put("[RETRY] Retrying failed download...")
+            log_queue.put(f"[URL] {url}")
+
+            output_file = self._download_video(
+                url,
+                log_queue,
+                quality,
+                codec,
+                audio_dir,
+                lyrics_dir,
+                is_playlist,
+                overwrite,
+                playlist_title,
+            )
+
+            if not output_file:
+                log_queue.put("[RETRY] Retry failed again")
+                return
+
+            log_queue.put("[RETRY] Download succeeded")
+
+            # Remove from failed entries
+            if self.fail_logger:
+                self.fail_logger.remove_entry(entry)
+                log_queue.put("[RETRY] Removed entry from failed log")
+
+            # Fix playlist position if needed
+            if is_playlist and playlist_title and index is not None:
+                self._insert_into_playlist(
+                    playlist_title,
+                    output_file,
+                    index,
+                    playlist_dir,
+                    log_queue,
+                )
+
+        except Exception as e:
+            log_queue.put(f"[ERROR] Retry failed: {str(e)}")
+
+        finally:
+            self.active_downloads.pop(download_id, None)
+            log_queue.put("[END]")
+
+    def _detect_playlist_path_style(self, lines):
+        """
+        Determine how paths are stored in the playlist.
+        Returns: "absolute", "relative", or "filename"
+        """
+        for line in lines:
+            if not line or line.startswith("#"):
+                continue
+
+            if os.path.isabs(line):
+                return "absolute"
+
+            if "/" in line or "\\" in line:
+                return "relative"
+
+            return "filename"
+
+        return "filename"
+
+    def _normalize_track_path(self, track_path, style, playlist_dir):
+        if style == "absolute":
+            return os.path.abspath(track_path)
+
+        if style == "relative":
+            return os.path.relpath(
+                track_path,
+                start=playlist_dir,
+            )
+
+        # filename-only
+        return os.path.basename(track_path)
+
+    def _insert_into_playlist(
+        self,
+        playlist_title,
+        track_path,
+        index,
+        playlist_dir,
+        log_queue,
+    ):
+        playlist_file = os.path.join(playlist_dir, f"{playlist_title}.m3u")
+
+        if not os.path.exists(playlist_file):
+            log_queue.put("[PLAYLIST] Playlist file not found, creating new one")
+            with open(playlist_file, "w", encoding="utf-8") as f:
+                f.write("#EXTM3U\n")
+                f.write(track_path + "\n")
+            return
+
+        with open(playlist_file, "r", encoding="utf-8") as f:
+            lines = [l.rstrip("\n") for l in f]
+
+        # Separate track line positions
+        track_line_indices = [
+            i for i, line in enumerate(lines) if line and not line.startswith("#")
+        ]
+
+        style = self._detect_playlist_path_style(lines)
+
+        # Normalize track path to match playlist
+        normalized_track = self._normalize_track_path(track_path, style, playlist_dir)
+
+        # Recompute after dedupe
+        track_line_indices = [
+            i for i, line in enumerate(lines) if line and not line.startswith("#")
+        ]
+
+        # Convert 1-based index → 0-based
+        target_track_pos = max(0, index - 1)
+
+        # Clamp to available track count
+        if target_track_pos >= len(track_line_indices):
+            # Append after last track
+            insert_at = len(lines)
+        else:
+            insert_at = track_line_indices[target_track_pos]
+
+        lines.insert(insert_at, normalized_track)
+
+        with open(playlist_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+
+        log_queue.put(
+            f"[PLAYLIST] Inserted track at track position {target_track_pos + 1} in {playlist_title}"
+        )
+
     def start_download(
         self,
         url,

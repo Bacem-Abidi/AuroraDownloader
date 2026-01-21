@@ -37,6 +37,52 @@
 </div>
 
 
+<div id="retry-modal" class="modal hidden">
+  <div class="modal-card">
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="failed-title">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>Retry Failed Downloads</span>
+      </div>
+      <button class="modal-close" id="retry-modal-close" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="modal-content retry-content">
+      <!-- Retry All -->
+      <div class="retry-section">
+        <button id="retry-all-btn" class="btn btn-primary btn-block">
+          <i class="fas fa-redo"></i> Retry All Failed
+        </button>
+      </div>
+
+      <hr>
+
+      <!-- Retry by Playlist -->
+      <div class="retry-section">
+        <label for="retry-playlist-select">Retry by Playlist</label>
+        <div class="retry-playlist-wrapper">
+          <select id="retry-playlist-select" class="form-control"></select>
+          <button id="retry-playlist-btn" class="btn btn-secondary">Retry</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <button class="modal-close btn btn-tertiary" id="retry-modal-cancel">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+
+
 <!-- FAILED DOWNLOAD LAYOUT -->
 <div id="failed-modal" class="modal hidden failed-layout failed-only" role="dialog" aria-modal="true">
 
