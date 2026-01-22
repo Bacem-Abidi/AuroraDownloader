@@ -41,8 +41,8 @@
   <div class="modal-card">
     <!-- Header -->
     <div class="modal-header">
-      <div class="failed-title">
-        <i class="fas fa-exclamation-triangle"></i>
+      <div class="redo-title">
+        <i class="fas fa-redo"></i>
         <span>Retry Failed Downloads</span>
       </div>
       <button class="modal-close" id="retry-modal-close" aria-label="Close">
@@ -52,31 +52,38 @@
 
     <!-- Main Content -->
     <div class="modal-content retry-content">
-      <!-- Retry All -->
-      <div class="retry-section">
-        <button id="retry-all-btn" class="btn btn-primary btn-block">
-          <i class="fas fa-redo"></i> Retry All Failed
-        </button>
+
+      <div class="option">
+       <div class="playlist-row">
+          <label for="retry-count-input" style="width: 75%;">Retry by number</label>
+          <div class="retry-count-wrapper">
+            <input type="number" min="1" placeholder="e.g. 5" id="retry-count-input" class="form-control"></select>
+            <button id="retry-count-btn" class="btn btn-secondary">Retry</button>
+          </div>
+       </div> 
       </div>
 
-      <hr>
-
       <!-- Retry by Playlist -->
-      <div class="retry-section">
-        <label for="retry-playlist-select">Retry by Playlist</label>
-        <div class="retry-playlist-wrapper">
-          <select id="retry-playlist-select" class="form-control"></select>
-          <button id="retry-playlist-btn" class="btn btn-secondary">Retry</button>
-        </div>
+      <div class="option">
+       <div class="playlist-row">
+          <label for="retry-playlist-select">Retry by Playlist</label>
+          <div class="retry-playlist-wrapper">
+            <select id="retry-playlist-select" class="form-control"></select>
+            <button id="retry-playlist-btn" class="btn btn-secondary">Retry</button>
+          </div>
+       </div> 
       </div>
 
     </div>
 
     <!-- Footer -->
-    <div class="modal-footer">
-      <button class="modal-close btn btn-tertiary" id="retry-modal-cancel">
+    <div class="modal-footer retry-footer">
+      <button class="btn btn-danger" id="retry-modal-cancel">
         Cancel
       </button>
+      <button id="retry-all-btn" class="btn btn-primary btn-block">
+          <i class="fas fa-redo"></i> Retry All Failed
+        </button>
     </div>
   </div>
 </div>

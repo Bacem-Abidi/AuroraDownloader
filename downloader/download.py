@@ -50,6 +50,132 @@ class DownloadManager:
 
         self.migration_choices = {}
 
+    def _select_failed_entries(self, fail_dir, mode, playlist=None, count=0):
+        if fail_dir:
+            self.fail_logger = FailLogger(fail_dir)
+
+        if not self.fail_logger:
+            return []
+
+        entries = self.fail_logger.load_all()
+
+        if mode == "playlist":
+            entries = [e for e in entries if e.get("playlist_title") == playlist]
+
+        elif mode == "count":
+            entries = entries[: int(count)]
+
+        return entries
+
+    def retry_failed_entries(
+        self,
+        failed_entries,
+        download_id,
+        audio_dir,
+        lyrics_dir,
+        playlist_dir,
+        fail_dir,
+        overwrite=False,
+    ):
+        log_queue = Queue()
+        self.log_queues[download_id] = log_queue
+        self.active_downloads[download_id] = True
+
+        thread = threading.Thread(
+            target=self._retry_failed_bulk_thread,
+            args=(
+                failed_entries,
+                download_id,
+                log_queue,
+                audio_dir,
+                lyrics_dir,
+                playlist_dir,
+                fail_dir,
+                overwrite,
+            ),
+            daemon=True,
+        )
+        thread.start()
+
+    def _retry_failed_bulk_thread(
+        self,
+        entries,
+        download_id,
+        log_queue,
+        audio_dir,
+        lyrics_dir,
+        playlist_dir,
+        fail_dir,
+        overwrite,
+    ):
+        if fail_dir:
+            self.fail_logger = FailLogger(fail_dir)
+
+        total = len(entries)
+        success = 0
+        failed = 0
+
+        try:
+            log_queue.put(f"[BULK RETRY] Retrying {total} failed downloads")
+
+            for i, entry in enumerate(entries, 1):
+                url = entry["url"]
+                quality = entry.get("quality", "best")
+                codec = entry.get("format", "mp3")
+                playlist_title = entry.get("playlist")
+                index = entry.get("index")
+                is_playlist = entry.get("type") == "playlist"
+
+                log_queue.put(f"[{i}/{total}] Retrying")
+                log_queue.put(f"[URL] {url}")
+
+                try:
+                    output_file = self._download_video(
+                        url,
+                        log_queue,
+                        quality,
+                        codec,
+                        audio_dir,
+                        lyrics_dir,
+                        is_playlist,
+                        overwrite,
+                        playlist_title,
+                    )
+
+                    if not output_file:
+                        failed += 1
+                        log_queue.put("[RESULT] Retry failed")
+                        continue
+
+                    # Remove from failed log
+                    if self.fail_logger:
+                        self.fail_logger.remove_entry(entry)
+
+                    # Fix playlist order
+                    if is_playlist and playlist_title and index is not None:
+                        self._insert_into_playlist(
+                            playlist_title,
+                            output_file,
+                            index,
+                            playlist_dir,
+                            log_queue,
+                        )
+
+                    success += 1
+                    log_queue.put("[RESULT] Retry succeeded")
+
+                except Exception as e:
+                    failed += 1
+                    log_queue.put(f"[ERROR] Retry failed: {str(e)}")
+
+            log_queue.put("[BULK RETRY COMPLETE]")
+            log_queue.put(f"[SUCCESS] Succussfull retries: {success}")
+            log_queue.put(f"[FAILED] Failed retries: {failed}")
+
+        finally:
+            self.active_downloads.pop(download_id, None)
+            log_queue.put("[END]")
+
     def retry_failed_entry(
         self,
         failed_entry,

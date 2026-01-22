@@ -131,6 +131,16 @@ input:focus {
   transform: translateY(-2px);
 }
 
+.btn-danger {
+  background: var(--danger);
+  color: var(--text);
+}
+
+.btn-danger:hover {
+  background: #82261f;
+  transform: translateY(-2px);
+}
+
 .btn-secondary {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text);
@@ -1644,4 +1654,29 @@ input[type="range"] {
   width: 18px;
   margin: 0;
   accent-color: var(--highlight);
+}
+
+.retry-content {
+  padding: 18px;
+  gap: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.playlist-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.retry-playlist-wrapper,
+.retry-count-wrapper {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.retry-footer {
+  flex-direction: row;
 }

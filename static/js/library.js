@@ -613,6 +613,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // RETRY BULK BTN
   function getSelectedFailedEntries() {
     return [...document.querySelectorAll(".library-row.is-failed")]
       .filter((row) => row.querySelector(".retry-check")?.checked)
@@ -628,8 +629,13 @@ document.addEventListener("DOMContentLoaded", () => {
       openRetryModal();
     }
   });
+
   document
     .getElementById("retry-modal-close")
+    .addEventListener("click", closeRetryModal);
+
+  document
+    .getElementById("retry-modal-cancel")
     .addEventListener("click", closeRetryModal);
 
   function populateRetryPlaylists() {
@@ -648,6 +654,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("retry-modal").classList.remove("hidden");
     overlay.classList.remove("hidden");
   }
+
   function closeRetryModal() {
     const modal = document.getElementById("retry-modal");
 
@@ -671,34 +678,94 @@ document.addEventListener("DOMContentLoaded", () => {
     retryEntries(library);
   };
 
-  document.getElementById("retry-playlist-btn").onclick = () => {
-    const playlist = document.getElementById("retry-playlist-select").value;
-    const entries = library.filter((e) => e.playlist === playlist);
-    retryEntries(entries);
+  document.getElementById("retry-count-btn").onclick = () => {
+    const count = parseInt(document.getElementById("retry-count-input").value);
+
+    if (!count || count <= 0) {
+      showToast("Please enter a valid retry count");
+      return;
+    }
+
+    // Take first N failed entries (preserves order)
+    const entries = library.slice(0, count);
+
+    if (!entries.length) {
+      showToast("No failed entries to retry");
+      return;
+    }
+    retryEntries({
+      mode: "count",
+      count: Number(document.getElementById("retry-count-input").value),
+    });
   };
+
+  document.getElementById("retry-playlist-btn").onclick = () => {
+    const selectedPlaylist = document.getElementById(
+      "retry-playlist-select",
+    ).value;
+    retryBulk({
+      mode: "playlist",
+      playlist: selectedPlaylist,
+    });
+  };
+
+  async function retryBulk(payload) {
+    showToast("Retrying failed downloads…");
+
+    const res = await fetch("/failed/retry/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        audio_dir: audioDir,
+        lyrics_dir: lyricsDir,
+        playlist_dir: playlistDir,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (data.download_id) {
+      setCurrentDownloadId(data.download_id);
+      startLogStream(getCurrentDownloadId());
+    } else {
+      throw new Error("Retry failed");
+    }
+
+    showToast(`Retrying ${data.count} entries`);
+    closeRetryModal();
+  }
 
   async function retryEntries(entries) {
     if (!entries.length) return;
 
-    showToast(`Retrying ${entries.length} entries…`);
+    try {
+      const res = await fetch("/failed/retry/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entries: entries,
+          audio_dir: audioDir,
+          lyrics_dir: lyricsDir,
+          playlist_dir: playlistDir,
+        }),
+      });
 
-    // const res = await fetch("/failed/retry/bulk", {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify({
-    //     entries,
-    //     audio_dir: audioDir,
-    //     lyrics_dir: lyricsDir,
-    //     playlist_dir: playlistDir,
-    //   }),
-    // });
-    //
-    // const data = await res.json();
-    //
-    // if (data.download_id) {
-    //   setCurrentDownloadId(data.download_id);
-    //   startLogStream(getCurrentDownloadId());
-    // }
+      const data = await res.json();
+
+      if (data.download_id) {
+        setCurrentDownloadId(data.download_id);
+        startLogStream(getCurrentDownloadId());
+      } else {
+        throw new Error("Retry failed");
+      }
+
+      showToast(`Retrying ${entries.length} entries…`);
+
+      closeRetryModal();
+    } catch (e) {
+      showToast(e.message);
+    }
   }
 
   document.querySelector(".retry-btn").addEventListener("click", async () => {

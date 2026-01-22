@@ -8,6 +8,35 @@ class FailLogger:
         self.fail_dir = fail_dir
         os.makedirs(fail_dir, exist_ok=True)
 
+
+    def load_all(self):
+        """
+        Load all failed entries across all weeks (chronological order)
+        """
+        all_entries = []
+
+        files = [
+            f
+            for f in os.listdir(self.fail_dir)
+            if f.startswith("fail_") and f.endswith(".json")
+        ]
+
+        # Sort by filename → chronological
+        files.sort()
+
+        for filename in files:
+            path = os.path.join(self.fail_dir, filename)
+
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    entries = json.load(f)
+                    if isinstance(entries, list):
+                        all_entries.extend(entries)
+            except Exception:
+                continue
+
+        return all_entries
+
     def get_week_file(self):
         """Get the error file for the current week"""
         now = datetime.now()

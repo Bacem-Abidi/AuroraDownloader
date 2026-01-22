@@ -156,6 +156,57 @@ def start_download():
     )
 
 
+@app.route("/failed/retry/bulk", methods=["POST"])
+def retry_failed_bulk():
+    data = request.get_json()
+    entries = data.get("entries")
+    audio_dir = data.get("audio_dir", "Downloads")
+    lyrics_dir = data.get("lyrics_dir", "Downloads/lyrics")
+    playlist_dir = data.get("playlist_dir", "Downloads/playlists")
+
+    audio_dir = expand_path(audio_dir)
+    lyrics_dir = expand_path(lyrics_dir)
+    playlist_dir = expand_path(playlist_dir)
+
+    download_id = f"retry-{int(time.time() * 1000)}"
+
+    fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
+    if not entries:
+        mode = data.get("mode")  # all | playlist | count
+        playlist = data.get("playlist")
+        count = data.get("count")
+        entries = download_manager._select_failed_entries(
+            fail_dir=fail_dir,
+            mode=mode,
+            playlist=playlist,
+            count=count,
+        )
+
+    if not entries:
+        return jsonify({"error": "No matching failed entries"}), 400
+
+    try:
+        download_manager.retry_failed_entries(
+            failed_entries=entries,
+            download_id=download_id,
+            audio_dir=audio_dir,
+            lyrics_dir=lyrics_dir,
+            playlist_dir=playlist_dir,
+            fail_dir=fail_dir,
+            overwrite=False,
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(
+        {
+            "status": "started",
+            "download_id": download_id,
+            "count": len(entries),
+        }
+    )
+
+
 @app.route("/failed/retry", methods=["POST"])
 def retry_failed():
     data = request.get_json()
