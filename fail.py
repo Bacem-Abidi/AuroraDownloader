@@ -8,7 +8,6 @@ class FailLogger:
         self.fail_dir = fail_dir
         os.makedirs(fail_dir, exist_ok=True)
 
-
     def load_all(self):
         """
         Load all failed entries across all weeks (chronological order)
@@ -30,8 +29,13 @@ class FailLogger:
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     entries = json.load(f)
-                    if isinstance(entries, list):
-                        all_entries.extend(entries)
+                    for e in entries:
+                        # ---- BACKWARD COMPATIBILITY ----
+                        if "playlist" not in e and "playlist_title" in e:
+                            e["playlist"] = e.pop("playlist_title")
+
+                        all_entries.append(e)
+
             except Exception:
                 continue
 

@@ -675,27 +675,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   document.getElementById("retry-all-btn").onclick = () => {
-    retryEntries(library);
+    retryBulk({
+      mode: "all",
+    });
   };
 
   document.getElementById("retry-count-btn").onclick = () => {
-    const count = parseInt(document.getElementById("retry-count-input").value);
+    const count = Number(document.getElementById("retry-count-input").value);
 
     if (!count || count <= 0) {
       showToast("Please enter a valid retry count");
       return;
     }
 
-    // Take first N failed entries (preserves order)
-    const entries = library.slice(0, count);
-
-    if (!entries.length) {
-      showToast("No failed entries to retry");
-      return;
-    }
-    retryEntries({
+    retryBulk({
       mode: "count",
-      count: Number(document.getElementById("retry-count-input").value),
+      count: count,
     });
   };
 

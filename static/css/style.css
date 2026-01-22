@@ -1306,6 +1306,13 @@ details summary {
   color: #ffb347;
 }
 
+.redo-title {
+  align-items: center;
+  gap: 10px;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
 .failed-title i {
   color: #ff6b6b;
 }
