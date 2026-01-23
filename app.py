@@ -15,6 +15,7 @@ from datetime import datetime
 from ytmusicapi import YTMusic
 from mutagen.id3 import ID3, APIC
 from history import HistoryLogger
+from cache import LibraryCache
 from flask_bootstrap import Bootstrap5
 from mutagen import File as MutagenFile
 from downloader import download_manager
@@ -25,13 +26,14 @@ from difflib import SequenceMatcher
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
 PREFS_FILE = os.path.join(CONFIG_DIR, "preferences.json")
 AUDIO_EXTENSIONS = (".mp3", ".flac", ".wav", ".ogg", ".m4a")
-LIBRARY_CACHE = {}
+LIBRARY_CACHE = LibraryCache()
 
 # progress_tracker = ProgressTracker(CONFIG_DIR)
 app = Flask(__name__)
 app.config["REDIS_URL"] = "redis://localhost"  # For production, use a real Redis server
 app.register_blueprint(sse, url_prefix="/stream")
 Bootstrap5(app)
+
 
 # Helper function:
 # Expand paths and convert to absolute paths
@@ -40,6 +42,7 @@ def expand_path(path):
     expanded = os.path.expanduser(path)
     # Convert to absolute path
     return os.path.abspath(expanded)
+
 
 def get_audio_metadata(path):
     try:
@@ -95,6 +98,7 @@ def get_audio_metadata(path):
             "hasArtwork": False,
         }
 
+
 def resolve_playlist_entry(entry, playlist_dir, audio_dir):
     entry = entry.strip()
 
@@ -120,6 +124,7 @@ def resolve_playlist_entry(entry, playlist_dir, audio_dir):
 
     return None
 
+
 def format_bytes(size):
     if size is None:
         return None
@@ -128,6 +133,7 @@ def format_bytes(size):
             return f"{size:.2f} {unit}"
         size /= 1024
     return f"{size:.2f} PB"
+
 
 def format_duration_human(seconds):
     if not seconds or seconds <= 0:
@@ -149,6 +155,7 @@ def format_duration_human(seconds):
 
     return " ".join(parts)
 
+
 def format_hours(seconds):
     if not seconds:
         return "0:00"
@@ -169,7 +176,6 @@ def get_audio_stats(path):
         pass
 
     return size, duration
-
 
 
 @app.route("/")
@@ -483,8 +489,6 @@ def format_duration(seconds):
     return f"{m}:{s:02d}"
 
 
-
-
 @app.route("/artwork")
 def artwork():
     path = request.args.get("path")
@@ -531,8 +535,6 @@ def list_playlists():
     return jsonify(playlists)
 
 
-
-
 @app.route("/playlist/<name>", methods=["GET"])
 def load_playlist(name):
     try:
@@ -548,28 +550,60 @@ def load_playlist(name):
         if not os.path.isfile(playlist_path):
             return jsonify({"error": "Playlist not found"}), 404
 
-        playlist_base_dir = os.path.dirname(playlist_path)
-        resolved_paths = []
-        total_size = 0
-        total_duration = 0
+        # Generate cache key for this playlist
+        playlist_key = f"playlist:{playlist_path}:{audio_dir}"
+        playlist_mtime = os.path.getmtime(playlist_path)
 
-        # Resolve all entries first
-        with open(playlist_path, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                resolved = resolve_playlist_entry(line, playlist_base_dir, audio_dir)
-                if resolved:
-                    resolved_paths.append(resolved)
+        # Check cache
+        cached_data = LIBRARY_CACHE.get(playlist_key)
+        if cached_data and cached_data.get("playlist_mtime") == playlist_mtime:
+            # Cache is valid
+            resolved_paths = cached_data["resolved_paths"]
+            total_size = cached_data["total_size"]
+            total_duration = cached_data["total_duration"]
+        else:
+            # Need to resolve playlist
+            playlist_base_dir = os.path.dirname(playlist_path)
+            resolved_paths = []
+            total_size = 0
+            total_duration = 0
 
-                    size, duration = get_audio_stats(resolved)
-                    total_size += size
-                    total_duration += duration
+            with open(playlist_path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    resolved = resolve_playlist_entry(
+                        line, playlist_base_dir, audio_dir
+                    )
+                    if resolved and os.path.exists(resolved):
+                        resolved_paths.append(resolved)
+                        size, duration = get_audio_stats(resolved)
+                        total_size += size
+                        total_duration += duration
+
+            # Cache the resolved playlist
+            LIBRARY_CACHE.set(
+                playlist_key,
+                {
+                    "resolved_paths": resolved_paths,
+                    "total_size": total_size,
+                    "total_duration": total_duration,
+                    "playlist_mtime": playlist_mtime,
+                    "cache_time": time.time(),
+                },
+            )
 
         total = len(resolved_paths)
         slice_paths = resolved_paths[offset : offset + limit]
 
         items = []
         for path in slice_paths:
-            meta = get_audio_metadata(path)
+            # Check metadata cache
+            metadata = LIBRARY_CACHE.get_metadata(path)
+            if metadata and not LIBRARY_CACHE.is_metadata_stale(path):
+                meta = metadata["metadata"]
+            else:
+                meta = get_audio_metadata(path)
+                LIBRARY_CACHE.set_metadata(path, meta)
+
             items.append(
                 {
                     **meta,
@@ -589,6 +623,7 @@ def load_playlist(name):
                 "hasMore": offset + limit < total,
                 "total_size": format_bytes(total_size),
                 "total_duration": format_duration_human(total_duration),
+                "cached": cached_data is not None,
             }
         )
 
@@ -612,15 +647,41 @@ def library():
         if not os.path.isdir(audio_dir):
             return jsonify({"error": "Invalid audio directory"}), 400
 
-        # Clear cache if reset requested
-        if reset and audio_dir in LIBRARY_CACHE:
-            del LIBRARY_CACHE[audio_dir]
+        cache_key = LIBRARY_CACHE.get_cache_key(audio_dir, "library")
 
-        # Scan once and cache
-        if audio_dir not in LIBRARY_CACHE:
+        # Clear cache if reset requested
+        if reset:
+            LIBRARY_CACHE.invalidate(cache_key)
+
+        # Check if cache exists and is valid
+        cached_data = LIBRARY_CACHE.get(cache_key)
+
+        if cached_data:
+            files = cached_data["files"]
+            total_size = cached_data["total_size"]
+            total_duration = cached_data["total_duration"]
+            cache_time = cached_data["cache_time"]
+
+            # Check if directory has been modified since cache
+            try:
+                dir_mtime = max(
+                    os.path.getmtime(root) for root, _, _ in os.walk(audio_dir)
+                )
+                if dir_mtime <= cache_time:
+                    # Cache is still valid
+                    all_files = files
+                else:
+                    # Directory modified, rescan
+                    raise Exception("Cache stale")
+            except:
+                # Force rescan
+                cached_data = None
+
+        if not cached_data:
             files = []
             total_size = 0
             total_duration = 0
+
             for root, _, filenames in os.walk(audio_dir):
                 for f in filenames:
                     if f.lower().endswith(AUDIO_EXTENSIONS):
@@ -632,20 +693,29 @@ def library():
                         total_duration += duration
 
             files.sort(key=lambda p: os.path.basename(p).lower())
-            LIBRARY_CACHE[audio_dir] = {
+
+            # Cache with current time
+            cached_data = {
                 "files": files,
                 "total_size": total_size,
                 "total_duration": total_duration,
+                "cache_time": time.time(),
             }
+            LIBRARY_CACHE.set(cache_key, cached_data)
 
-        cache = LIBRARY_CACHE[audio_dir]
-        all_files = cache["files"]
+        all_files = cached_data["files"]
         slice_files = all_files[offset : offset + limit]
-
 
         items = []
         for path in slice_files:
-            meta = get_audio_metadata(path)
+            # Check metadata cache first
+            metadata = LIBRARY_CACHE.get_metadata(path)
+            if metadata and not LIBRARY_CACHE.is_metadata_stale(path):
+                meta = metadata["metadata"]
+            else:
+                meta = get_audio_metadata(path)
+                LIBRARY_CACHE.set_metadata(path, meta)
+
             items.append(
                 {
                     **meta,
@@ -663,13 +733,53 @@ def library():
                 "limit": limit,
                 "total": len(all_files),
                 "hasMore": offset + limit < len(all_files),
-                "total_size": format_bytes(cache["total_size"]),
-                "total_duration": format_duration_human(cache["total_duration"]),
+                "total_size": format_bytes(cached_data["total_size"]),
+                "total_duration": format_duration_human(cached_data["total_duration"]),
+                "cached": True if cached_data.get("cache_time") else False,
             }
         )
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/cache/invalidate", methods=["POST"])
+def invalidate_cache():
+    """Invalidate specific cache entries"""
+    try:
+        data = request.json
+        cache_key = data.get("key")
+        if cache_key:
+            LIBRARY_CACHE.invalidate(cache_key)
+            return jsonify({"message": f"Cache {cache_key} invalidated"})
+        else:
+            LIBRARY_CACHE.clear()
+            return jsonify({"message": "All cache cleared"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/cache/status", methods=["GET"])
+def cache_status():
+    """Get cache status"""
+    try:
+        with LIBRARY_CACHE.lock:
+            cache_info = {
+                "library_cache_size": len(LIBRARY_CACHE.cache),
+                "metadata_cache_size": len(LIBRARY_CACHE.metadata_cache),
+                "cached_keys": list(LIBRARY_CACHE.cache.keys()),
+                "max_size": LIBRARY_CACHE.max_size,
+            }
+        return jsonify(cache_info)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# Add cache invalidation when files are downloaded
+def invalidate_cache_on_download(audio_dir):
+    """Invalidate cache when new files are downloaded"""
+    cache_key = LIBRARY_CACHE.get_cache_key(audio_dir, "library")
+    LIBRARY_CACHE.invalidate(cache_key)
 
 
 @app.route("/failed", methods=["GET"])

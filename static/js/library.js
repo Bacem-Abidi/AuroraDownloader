@@ -46,19 +46,37 @@ document.addEventListener("DOMContentLoaded", () => {
     `,
   };
 
-  let library = [];
-  let offset = 0;
-  const limit = 25;
-  let loading = false;
-  let hasMore = true;
+  // Separate cache for each source/playlist
+  const libraryCache = {
+    all: {
+      items: [],
+      offset: 0,
+      hasMore: true,
+      totalCount: 0,
+      totalSize: 0,
+      totalDuration: 0,
+    },
+    failed: {
+      items: [],
+      offset: 0,
+      hasMore: true,
+      totalCount: 0,
+      totalSize: 0,
+      totalDuration: 0,
+    },
+  };
+  // Playlists will be cached by their name
+  const playlistCache = {};
+
   let currentSource = "all";
   let playlistDir = null;
   let audioDir = null;
   let lyricsDir = null;
   let mode = "library"; // "library" | "playlist"
   let currentPlaylist = null;
-  let totalCount = 0;
   let activeFailedEntry = null;
+  let loading = false;
+  const limit = 25;
 
   function updateGridMode(source) {
     const header = document.getElementById("library-row-header");
@@ -102,10 +120,14 @@ document.addEventListener("DOMContentLoaded", () => {
     bulk.classList.toggle("hidden", currentSource !== "failed");
   }
 
+  function updateReloadActions() {
+    const reload = document.getElementById("reload-btn");
+    reload.classList.toggle("hidden", currentSource === "failed");
+  }
+
   function selectSource(source) {
     mode = "library";
     currentPlaylist = null;
-
     currentSource = source;
 
     updateGridMode(currentSource);
@@ -121,14 +143,16 @@ document.addEventListener("DOMContentLoaded", () => {
       header.innerHTML = HEADERS.failed;
     }
     updateBulkActions();
+    updateReloadActions();
 
+    // Clear current view and load from cache or server
+    container.innerHTML = "";
     loadLibrary(true, source);
   }
 
   async function selectPlaylist(name) {
     mode = "playlist";
     currentPlaylist = name;
-
     currentSource = "playlist";
 
     updateGridMode(currentSource);
@@ -136,10 +160,10 @@ document.addEventListener("DOMContentLoaded", () => {
     libraryTitle.textContent = name.replace(/\.m3u$/i, "");
     libraryMeta.textContent = "Playlist";
 
-    offset = 0;
-    hasMore = true;
-    loading = false;
-    library = [];
+    updateBulkActions();
+    updateReloadActions();
+
+    // Clear current view and load from cache or server
     container.innerHTML = "";
     header.innerHTML = HEADERS.all;
 
@@ -147,7 +171,32 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function loadPlaylistPage(reset = false) {
-    if (loading || (!hasMore && !reset)) return;
+    if (loading) return;
+
+    // Get or create cache entry for this playlist
+    const cacheKey = `playlist:${currentPlaylist}`;
+    if (!playlistCache[cacheKey]) {
+      playlistCache[cacheKey] = {
+        items: [],
+        offset: 0,
+        hasMore: true,
+        totalCount: 0,
+        totalSize: 0,
+        totalDuration: 0,
+      };
+    }
+
+    const cache = playlistCache[cacheKey];
+
+    // Reset cache if requested
+    if (reset) {
+      cache.items = [];
+      cache.offset = 0;
+      cache.hasMore = true;
+      container.innerHTML = "";
+    }
+
+    if (!cache.hasMore && !reset) return;
 
     loading = true;
 
@@ -156,22 +205,24 @@ document.addEventListener("DOMContentLoaded", () => {
         `/playlist/${encodeURIComponent(currentPlaylist)}?` +
           `audioDir=${encodeURIComponent(audioDir)}` +
           `&playlistDir=${encodeURIComponent(playlistDir)}` +
-          `&offset=${offset}&limit=${limit}`,
+          `&offset=${cache.offset}&limit=${limit}` +
+          (reset ? "&reset=true" : ""),
       );
 
       const data = await res.json();
 
-      hasMore = data.hasMore;
-      offset += limit;
-      library.push(...data.items);
+      cache.hasMore = data.hasMore;
+      cache.offset += limit;
+      cache.items.push(...data.items);
+      cache.totalCount = data.total;
+      cache.totalSize = data.total_size;
+      cache.totalDuration = data.total_duration;
 
-      totalCount = data.total;
-      totalSize = data.total_size;
-      totalDuration = data.total_duration;
-      libraryMeta.textContent = `${library.length} / ${totalCount} tracks [${totalDuration} listening time]`;
-      librarySize.textContent = `${totalSize}`;
+      // Update UI with cache data
+      libraryMeta.textContent = `${cache.items.length} / ${cache.totalCount} tracks [${cache.totalDuration} listening time]`;
+      librarySize.textContent = `${cache.totalSize}`;
 
-      renderLibrary(data.items);
+      renderLibrary(cache.items.slice(-data.items.length)); // Only render new items
     } catch (e) {
       console.error("Error loading playlist:", e);
     } finally {
@@ -181,23 +232,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadLibrary(reset = false, source = "all") {
     if (searchInput.value.trim() !== "") return;
+    if (loading) return;
 
-    if (loading || (!hasMore && !reset)) return;
+    // Get or create cache entry for this source
+    const cache = libraryCache[source];
+
+    // Reset cache if requested
+    if (reset) {
+      cache.items = [];
+      cache.offset = 0;
+      cache.hasMore = true;
+      container.innerHTML = "";
+    }
+
+    if (!cache.hasMore && !reset) return;
 
     loading = true;
 
     try {
-      if (reset) {
-        offset = 0;
-        hasMore = true;
-        library = [];
-        container.innerHTML = "";
-      }
-
       let endpoint;
 
       if (source === "failed") {
-        endpoint = `/failed?offset=${offset}&limit=${limit}`;
+        endpoint = `/failed?offset=${cache.offset}&limit=${limit}`;
       } else {
         if (!audioDir) {
           const prefs = await (await fetch("/preferences")).json();
@@ -205,30 +261,45 @@ document.addEventListener("DOMContentLoaded", () => {
           playlistDir = prefs.playlistDir;
           lyricsDir = prefs.lyricsDir;
         }
-        endpoint = `/library?dir=${encodeURIComponent(audioDir)}&offset=${offset}&limit=${limit}&reset=${reset}`;
+        endpoint = `/library?dir=${encodeURIComponent(audioDir)}&offset=${cache.offset}&limit=${limit}&reset=${reset}`;
       }
 
       const res = await fetch(endpoint);
-
       const data = await res.json();
 
-      hasMore = data.hasMore;
-      offset += limit;
-      library.push(...data.items);
+      cache.hasMore = data.hasMore;
+      cache.offset += limit;
+      cache.items.push(...data.items);
+      cache.totalCount = data.total;
+      cache.totalSize = data.total_size;
+      cache.totalDuration = data.total_duration;
 
-      totalCount = data.total;
-      totalSize = data.total_size;
-      totalDuration = data.total_duration;
-      libraryMeta.textContent = `${library.length} / ${totalCount} tracks` + ((source === "failed") ? "" : ` [${totalDuration} listening time]`);
-      librarySize.textContent = source === "failed" ? "" : `${totalSize}`;
+      // Update UI with cache data
+      const cacheText = data.cached ? " (Cached)" : "";
+      libraryMeta.textContent =
+        `${cache.items.length} / ${cache.totalCount} tracks` +
+        (source === "failed"
+          ? ""
+          : ` [${cache.totalDuration} listening time]`) +
+        cacheText;
 
-      renderLibrary(data.items);
+      librarySize.textContent = source === "failed" ? "" : `${cache.totalSize}`;
+
+      // Only render the newly loaded items
+      renderLibrary(cache.items.slice(-data.items.length));
+
+      // Show toast for cache hits (only on first load/reset)
+      if (reset && data.cached) {
+        showToast(
+          `${source === "failed" ? "Failed downloads" : "Library"} loaded from cache`,
+        );
+      }
     } catch (error) {
       console.error("Error loading library:", error);
       container.innerHTML = `
         <div class="history-placeholder">
           <i class="fas fa-exclamation-circle fa-3x"></i>
-          <p>Failed to load library</p>
+          <p>Failed to load ${source === "failed" ? "failed downloads" : "library"}</p>
         </div>
       `;
     } finally {
@@ -236,68 +307,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // function renderLibrary(items, clear = false) {
-  //   if (clear) container.innerHTML = "";
-  //
-  //   if (!items.length) {
-  //     container.innerHTML = `
-  //       <div class="history-placeholder">
-  //         <i class="fas fa-music fa-3x"></i>
-  //         <p>No matching files found</p>
-  //       </div>
-  //     `;
-  //     return;
-  //   }
-  //
-  //   items.forEach((entry) => {
-  //     const item = document.createElement("div");
-  //     item.className = "history-item library-item";
-  //
-  //     item.innerHTML = `
-  //       <div class="history-header">
-  //         <div class="history-title">${entry.title}</div>
-  //         <div class="library-actions">
-  //     <button class="actions-btn" aria-label="Actions">
-  //       <i class="fas fa-ellipsis-v"></i>
-  //     </button>
-  //
-  //     <div class="actions-menu">
-  //       <button data-action="info">
-  //         <i class="fas fa-info-circle"></i> Info
-  //       </button>
-  //       <button data-action="edit">
-  //         <i class="fas fa-pen"></i> Edit
-  //       </button>
-  //       <button data-action="move">
-  //         <i class="fas fa-folder-open"></i> Move location
-  //       </button>
-  //     </div>
-  //   </div>
-  // </div>
-  //       </div>
-  //       <div class="history-artist">${entry.artist}</div>
-  //       <div class="history-meta">
-  //         <span>${entry.album}</span>
-  //         <span>${entry.year || ""}</span>
-  //       </div>
-  //       <div class="history-path">
-  //         <i class="fas fa-folder"></i> ${entry.path}
-  //       </div>
-  //     `;
-  //
-  //     item.dataset.entry = JSON.stringify(entry);
-  //
-  //     container.appendChild(item);
-  //   });
-  // }
-
   function renderLibrary(items, clear = false) {
     if (clear) {
       container.innerHTML = "";
     }
 
     if (!items.length && clear) {
-      container.innerHTML += `
+      container.innerHTML = `
       <div class="history-placeholder">
         <i class="fas fa-music fa-3x"></i>
         <p>No matching files found</p>
@@ -385,18 +401,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function truncatePath(path, maxLength) {
-    if (!path || path.length <= maxLength) return path;
-
-    const parts = path.split("/");
-    return `${parts[0]}/.../${parts[parts.length - 1]}`;
-  }
-
   function getFilteredLibrary() {
     const query = searchInput.value.toLowerCase().trim();
     const filter = filterSelect.value;
 
-    return library.filter((item) => {
+    // Get the current cache based on mode
+    let currentItems = [];
+    if (mode === "playlist" && currentPlaylist) {
+      const cacheKey = `playlist:${currentPlaylist}`;
+      currentItems = playlistCache[cacheKey]?.items || [];
+    } else {
+      currentItems = libraryCache[currentSource]?.items || [];
+    }
+
+    return currentItems.filter((item) => {
       let value = "";
 
       switch (filter) {
@@ -424,6 +442,23 @@ document.addEventListener("DOMContentLoaded", () => {
   function applyFilters() {
     const filtered = getFilteredLibrary();
     renderLibrary(filtered, true);
+
+    // Update count for filtered results
+    const filteredCount = filtered.length;
+    let totalCount = 0;
+
+    if (mode === "playlist" && currentPlaylist) {
+      const cacheKey = `playlist:${currentPlaylist}`;
+      totalCount = playlistCache[cacheKey]?.totalCount || 0;
+    } else {
+      totalCount = libraryCache[currentSource]?.totalCount || 0;
+    }
+
+    const totalText = searchInput.value.trim()
+      ? `Showing ${filteredCount} of ${totalCount} tracks`
+      : `Loaded ${filteredCount} of ${totalCount} tracks`;
+
+    libraryMeta.textContent = totalText;
   }
 
   searchInput.addEventListener("input", applyFilters);
@@ -434,19 +469,48 @@ document.addEventListener("DOMContentLoaded", () => {
       container.scrollTop + container.clientHeight >=
       container.scrollHeight - 50
     ) {
+      if (loading) return;
+
       if (mode === "library") {
-        loadLibrary();
+        loadLibrary(false, currentSource);
       } else if (mode === "failed") {
         loadLibrary(false, "failed");
       } else if (mode === "playlist") {
-        loadPlaylistPage();
+        loadPlaylistPage(false);
       }
     }
   });
 
-  loadLibrary(true);
+  // Initialize by loading the library
+  loadLibrary(true, "all");
   updateGridMode(currentSource);
   loadPlaylists();
+
+  document.getElementById("reload-btn").addEventListener("click", async () => {
+    if (loading) return;
+
+    if (mode === "playlist" && currentPlaylist) {
+      // Clear playlist cache and reload
+      const cacheKey = `playlist:${currentPlaylist}`;
+      delete playlistCache[cacheKey];
+      await loadPlaylistPage(true);
+      showToast("Playlist cache cleared and reloaded");
+    } else {
+      // Clear library cache and reload
+      libraryCache[currentSource] = {
+        items: [],
+        offset: 0,
+        hasMore: true,
+        totalCount: 0,
+        totalSize: 0,
+        totalDuration: 0,
+      };
+      await loadLibrary(true, currentSource);
+      showToast(
+        `${currentSource === "failed" ? "Failed downloads" : "Library"} cache cleared and reloaded`,
+      );
+    }
+  });
 
   document.querySelectorAll(".sidebar-list").forEach((list) => {
     list.addEventListener("click", (e) => {
@@ -648,7 +712,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function populateRetryPlaylists() {
     const select = document.getElementById("retry-playlist-select");
     const playlists = [
-      ...new Set(library.map((e) => e.playlist).filter(Boolean)),
+      ...new Set(
+        libraryCache["failed"]?.items.map((e) => e.playlist).filter(Boolean) ||
+          [],
+      ),
     ];
 
     select.innerHTML = playlists
