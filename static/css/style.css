@@ -1057,9 +1057,8 @@ details summary {
 
 .library-body {
   flex: 1;
-  height: 100%;
+  height: 90%;
   overflow-y: auto;
-  padding-bottom: 42px;
 }
 
 #library-body::-webkit-scrollbar-track {
