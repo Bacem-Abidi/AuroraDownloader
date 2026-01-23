@@ -33,13 +33,143 @@ app.config["REDIS_URL"] = "redis://localhost"  # For production, use a real Redi
 app.register_blueprint(sse, url_prefix="/stream")
 Bootstrap5(app)
 
-
+# Helper function:
 # Expand paths and convert to absolute paths
 def expand_path(path):
     # Handle ~ and relative paths
     expanded = os.path.expanduser(path)
     # Convert to absolute path
     return os.path.abspath(expanded)
+
+def get_audio_metadata(path):
+    try:
+        audio = MutagenFile(path, easy=True)
+        if not audio:
+            raise Exception("Unsupported format")
+
+        duration = None
+        try:
+            duration = int(audio.info.length)
+        except Exception:
+            pass
+
+        def tag(name):
+            return audio.get(name, [None])[0]
+
+        has_artwork = False
+
+        # MP3 (ID3)
+        if path.lower().endswith(".mp3"):
+            try:
+                id3 = ID3(path)
+                has_artwork = bool(id3.getall("APIC"))
+            except Exception:
+                pass
+
+        # MP4 / M4A
+        elif isinstance(audio, MP4):
+            has_artwork = "covr" in audio.tags
+
+        # FLAC
+        elif isinstance(audio, FLAC):
+            has_artwork = bool(audio.pictures)
+
+        return {
+            "title": tag("title") or os.path.splitext(os.path.basename(path))[0],
+            "artist": tag("artist") or "Unknown Artist",
+            "album": tag("album") or "Unknown Album",
+            "track": tag("tracknumber"),
+            "year": tag("date") or tag("year"),
+            "format": os.path.splitext(path)[1][1:],
+            "duration": format_duration(duration),
+            "hasArtwork": has_artwork,
+        }
+
+    except Exception:
+        return {
+            "title": os.path.splitext(os.path.basename(path))[0],
+            "artist": "Unknown Artist",
+            "album": "Unknown Album",
+            "format": os.path.splitext(path)[1][1:],
+            "duration": "00:00",
+            "hasArtwork": False,
+        }
+
+def resolve_playlist_entry(entry, playlist_dir, audio_dir):
+    entry = entry.strip()
+
+    if not entry or entry.startswith("#"):
+        return None
+
+    # Expand env & user
+    entry = os.path.expanduser(os.path.expandvars(entry))
+
+    # 1. Absolute path
+    if os.path.isabs(entry):
+        return entry if os.path.isfile(entry) else None
+
+    # 2. Relative to playlist file
+    rel_to_playlist = os.path.join(playlist_dir, entry)
+    if os.path.isfile(rel_to_playlist):
+        return rel_to_playlist
+
+    # 3. Filename only → relative to audio dir (recursive search)
+    for root, _, files in os.walk(audio_dir):
+        if os.path.basename(entry) in files:
+            return os.path.join(root, os.path.basename(entry))
+
+    return None
+
+def format_bytes(size):
+    if size is None:
+        return None
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024:
+            return f"{size:.2f} {unit}"
+        size /= 1024
+    return f"{size:.2f} PB"
+
+def format_duration_human(seconds):
+    if not seconds or seconds <= 0:
+        return "0m"
+
+    seconds = int(seconds)
+
+    m, _ = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    d, h = divmod(h, 24)
+
+    parts = []
+    if d:
+        parts.append(f"{d}d")
+    if h:
+        parts.append(f"{h}h")
+    if m or not parts:
+        parts.append(f"{m}m")
+
+    return " ".join(parts)
+
+def format_hours(seconds):
+    if not seconds:
+        return "0:00"
+    h, rem = divmod(int(seconds), 3600)
+    m, _ = divmod(rem, 60)
+    return f"{h}:{m:02d}"
+
+
+def get_audio_stats(path):
+    """Fast stats only: duration + file size"""
+    size = os.path.getsize(path)
+    duration = 0
+    try:
+        audio = MutagenFile(path)
+        if audio and audio.info:
+            duration = int(audio.info.length)
+    except Exception:
+        pass
+
+    return size, duration
+
 
 
 @app.route("/")
@@ -353,59 +483,6 @@ def format_duration(seconds):
     return f"{m}:{s:02d}"
 
 
-def get_audio_metadata(path):
-    try:
-        audio = MutagenFile(path, easy=True)
-        if not audio:
-            raise Exception("Unsupported format")
-
-        duration = None
-        try:
-            duration = int(audio.info.length)
-        except Exception:
-            pass
-
-        def tag(name):
-            return audio.get(name, [None])[0]
-
-        has_artwork = False
-
-        # MP3 (ID3)
-        if path.lower().endswith(".mp3"):
-            try:
-                id3 = ID3(path)
-                has_artwork = bool(id3.getall("APIC"))
-            except Exception:
-                pass
-
-        # MP4 / M4A
-        elif isinstance(audio, MP4):
-            has_artwork = "covr" in audio.tags
-
-        # FLAC
-        elif isinstance(audio, FLAC):
-            has_artwork = bool(audio.pictures)
-
-        return {
-            "title": tag("title") or os.path.splitext(os.path.basename(path))[0],
-            "artist": tag("artist") or "Unknown Artist",
-            "album": tag("album") or "Unknown Album",
-            "track": tag("tracknumber"),
-            "year": tag("date") or tag("year"),
-            "format": os.path.splitext(path)[1][1:],
-            "duration": format_duration(duration),
-            "hasArtwork": has_artwork,
-        }
-
-    except Exception:
-        return {
-            "title": os.path.splitext(os.path.basename(path))[0],
-            "artist": "Unknown Artist",
-            "album": "Unknown Album",
-            "format": os.path.splitext(path)[1][1:],
-            "duration": "00:00",
-            "hasArtwork": False,
-        }
 
 
 @app.route("/artwork")
@@ -454,30 +531,6 @@ def list_playlists():
     return jsonify(playlists)
 
 
-def resolve_playlist_entry(entry, playlist_dir, audio_dir):
-    entry = entry.strip()
-
-    if not entry or entry.startswith("#"):
-        return None
-
-    # Expand env & user
-    entry = os.path.expanduser(os.path.expandvars(entry))
-
-    # 1. Absolute path
-    if os.path.isabs(entry):
-        return entry if os.path.isfile(entry) else None
-
-    # 2. Relative to playlist file
-    rel_to_playlist = os.path.join(playlist_dir, entry)
-    if os.path.isfile(rel_to_playlist):
-        return rel_to_playlist
-
-    # 3. Filename only → relative to audio dir (recursive search)
-    for root, _, files in os.walk(audio_dir):
-        if os.path.basename(entry) in files:
-            return os.path.join(root, os.path.basename(entry))
-
-    return None
 
 
 @app.route("/playlist/<name>", methods=["GET"])
@@ -497,6 +550,8 @@ def load_playlist(name):
 
         playlist_base_dir = os.path.dirname(playlist_path)
         resolved_paths = []
+        total_size = 0
+        total_duration = 0
 
         # Resolve all entries first
         with open(playlist_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -504,6 +559,10 @@ def load_playlist(name):
                 resolved = resolve_playlist_entry(line, playlist_base_dir, audio_dir)
                 if resolved:
                     resolved_paths.append(resolved)
+
+                    size, duration = get_audio_stats(resolved)
+                    total_size += size
+                    total_duration += duration
 
         total = len(resolved_paths)
         slice_paths = resolved_paths[offset : offset + limit]
@@ -528,6 +587,8 @@ def load_playlist(name):
                 "limit": limit,
                 "total": total,
                 "hasMore": offset + limit < total,
+                "total_size": format_bytes(total_size),
+                "total_duration": format_duration_human(total_duration),
             }
         )
 
@@ -558,16 +619,29 @@ def library():
         # Scan once and cache
         if audio_dir not in LIBRARY_CACHE:
             files = []
+            total_size = 0
+            total_duration = 0
             for root, _, filenames in os.walk(audio_dir):
                 for f in filenames:
                     if f.lower().endswith(AUDIO_EXTENSIONS):
-                        files.append(os.path.join(root, f))
+                        path = os.path.join(root, f)
+                        files.append(path)
+
+                        size, duration = get_audio_stats(path)
+                        total_size += size
+                        total_duration += duration
 
             files.sort(key=lambda p: os.path.basename(p).lower())
-            LIBRARY_CACHE[audio_dir] = files
+            LIBRARY_CACHE[audio_dir] = {
+                "files": files,
+                "total_size": total_size,
+                "total_duration": total_duration,
+            }
 
-        all_files = LIBRARY_CACHE[audio_dir]
+        cache = LIBRARY_CACHE[audio_dir]
+        all_files = cache["files"]
         slice_files = all_files[offset : offset + limit]
+
 
         items = []
         for path in slice_files:
@@ -589,6 +663,8 @@ def library():
                 "limit": limit,
                 "total": len(all_files),
                 "hasMore": offset + limit < len(all_files),
+                "total_size": format_bytes(cache["total_size"]),
+                "total_duration": format_duration_human(cache["total_duration"]),
             }
         )
 

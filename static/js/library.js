@@ -15,6 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const playlistList = document.getElementById("playlist-list");
   const libraryTitle = document.getElementById("library-title");
+  const librarySize = document.getElementById("library-size");
   const libraryMeta = document.getElementById("library-meta");
 
   const header = document.getElementById("library-row-header");
@@ -165,7 +166,10 @@ document.addEventListener("DOMContentLoaded", () => {
       library.push(...data.items);
 
       totalCount = data.total;
-      libraryMeta.textContent = `${library.length} / ${totalCount} tracks`;
+      totalSize = data.total_size;
+      totalDuration = data.total_duration;
+      libraryMeta.textContent = `${library.length} / ${totalCount} tracks [${totalDuration} listening time]`;
+      librarySize.textContent = `${totalSize}`;
 
       renderLibrary(data.items);
     } catch (e) {
@@ -213,7 +217,10 @@ document.addEventListener("DOMContentLoaded", () => {
       library.push(...data.items);
 
       totalCount = data.total;
-      libraryMeta.textContent = `${library.length} / ${totalCount} tracks`;
+      totalSize = data.total_size;
+      totalDuration = data.total_duration;
+      libraryMeta.textContent = `${library.length} / ${totalCount} tracks` + ((source === "failed") ? "" : ` [${totalDuration} listening time]`);
+      librarySize.textContent = source === "failed" ? "" : `${totalSize}`;
 
       renderLibrary(data.items);
     } catch (error) {

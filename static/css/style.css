@@ -1687,3 +1687,13 @@ input[type="range"] {
 .retry-footer {
   flex-direction: row;
 }
+
+.library-title-head {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+#library-size {
+  font-size: 12px;
+}
