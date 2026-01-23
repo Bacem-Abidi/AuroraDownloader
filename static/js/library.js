@@ -494,13 +494,13 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const failedFields = {
-    url: document.getElementById("info-url"),
-    playlist: document.getElementById("info-playlist"),
-    index: document.getElementById("info-index"),
-    format: document.getElementById("info-format"),
-    quality: document.getElementById("info-quality"),
-    type: document.getElementById("info-type"),
-    statuses: document.getElementById("info-statuses"),
+    url: document.getElementById("failed-url"),
+    playlist: document.getElementById("failed-playlist"),
+    index: document.getElementById("failed-index"),
+    format: document.getElementById("failed-format"),
+    quality: document.getElementById("failed-quality"),
+    type: document.getElementById("failed-type"),
+    statuses: document.getElementById("failed-statuses"),
   };
 
   function openInfoModal(entry) {
