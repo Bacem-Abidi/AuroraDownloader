@@ -11,9 +11,18 @@ import fail
 from flask_sse import sse
 from mutagen.mp4 import MP4
 from mutagen.flac import FLAC
+from mutagen.flac import Picture
 from datetime import datetime
 from ytmusicapi import YTMusic
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TDRC, TDOR, TORY, TPUB, TCON, COMM, APIC
+from mutagen.id3 import ID3
+
+from metadata_helpers import (
+    update_audio_metadata,
+    embed_artwork_from_file,
+    embed_artwork_from_url,
+    remove_artwork,
+)
+
 from history import HistoryLogger
 from cache import LibraryCache
 from flask_bootstrap import Bootstrap5
@@ -624,7 +633,6 @@ def load_playlist(name):
         if used_cache and cached_data.get("cache_time"):
             cache_age = int(time.time() - cached_data["cache_time"])
 
-
         return jsonify(
             {
                 "name": name,
@@ -864,157 +872,92 @@ def failed_library():
         return jsonify({"error": str(e)}), 500
 
 
-
-@app.route('/metadata/update', methods=['POST'])
+@app.route("/metadata/update", methods=["POST"])
 def update_metadata():
     try:
-        data = request.json
-        file_path = data.get('path')
-        metadata = data.get('metadata', {})
+        # Check if request is multipart/form-data
+        if request.content_type and "multipart/form-data" in request.content_type:
+            file_path = request.form.get("path")
+            metadata_str = request.form.get("metadata")
+            artwork_type = request.form.get(
+                "artwork_type", "keep"
+            )  # upload, url, remove, keep
+            artwork_url = request.form.get("artwork_url")
+            artwork_file = request.files.get("artwork_file")
 
-        if not file_path or not os.path.exists(file_path):
-            return jsonify({'error': 'File not found'}), 404
+            if not file_path or not os.path.exists(file_path):
+                return jsonify({"error": "File not found"}), 404
 
-        # Update metadata based on file type
-        success = update_audio_metadata(file_path, metadata)
+            metadata = {}
+            if metadata_str:
+                metadata = json.loads(metadata_str)
+
+            # Update metadata
+            success = update_audio_metadata(file_path, metadata)
+
+            # Handle artwork
+            if artwork_type == "upload" and artwork_file:
+                success = success and embed_artwork_from_file(file_path, artwork_file)
+            elif artwork_type == "url" and artwork_url:
+                success = success and embed_artwork_from_url(file_path, artwork_url)
+            elif artwork_type == "remove":
+                success = success and remove_artwork(file_path)
+            elif artwork_type == "keep":
+                # Keep existing artwork, nothing to do
+                pass
+
+        else:
+            # Old JSON format (backward compatibility)
+            data = request.json
+            file_path = data.get("path")
+            metadata = data.get("metadata", {})
+
+            if not file_path or not os.path.exists(file_path):
+                return jsonify({"error": "File not found"}), 404
+
+            # Update metadata based on file type
+            success = update_audio_metadata(file_path, metadata)
 
         if success:
-            return jsonify({'success': True, 'message': 'Metadata updated'})
+            return jsonify({"success": True, "message": "Metadata updated"})
         else:
-            return jsonify({'error': 'Failed to update metadata'}), 500
+            return jsonify({"error": "Failed to update metadata"}), 500
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error in update_metadata: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
-def update_audio_metadata(file_path, metadata):
-    """Update metadata for various audio formats"""
+@app.route("/proxy-image")
+def proxy_image():
+    """Proxy image requests to avoid CORS issues"""
     try:
-        file_ext = os.path.splitext(file_path)[1].lower()
+        import requests
 
-        if file_ext in ['.mp3']:
-            return update_mp3_metadata(file_path, metadata)
-        elif file_ext in ['.m4a', '.mp4']:
-            return update_m4a_metadata(file_path, metadata)
-        elif file_ext in ['.flac']:
-            return update_flac_metadata(file_path, metadata)
-        else:
-            return update_generic_metadata(file_path, metadata)
+        url = request.args.get("url")
+        if not url:
+            return "", 400
 
-    except Exception as e:
-        print(f"Error updating metadata for {file_path}: {e}")
-        return False
-
-
-def update_mp3_metadata(file_path, metadata):
-    """Update ID3 tags for MP3 files"""
-    try:
-        try:
-            audio = ID3(file_path)
-        except Exception:
-            audio = ID3()
-        
-        if 'title' in metadata:
-            audio['TIT2'] = TIT2(encoding=3, text=metadata['title'])
-        if 'artist' in metadata:
-            audio['TPE1'] = TPE1(encoding=3, text=metadata['artist'])
-        if 'album' in metadata:
-            audio['TALB'] = TALB(encoding=3, text=metadata['album'])
-        if 'year' in metadata and metadata['year']:
-            year = str(metadata['year']).strip()
-            
-            # Validate year format (YYYY or YYYY-MM-DD)
-            if re.match(r'^\d{4}$', year):  # Just year (YYYY)
-                # Set TYER (Year) frame
-                audio['TYER'] = TYER(encoding=3, text=year)
-                # Also set TDRC (Recording time) as YYYY
-                audio['TDRC'] = TDRC(encoding=3, text=year)
-            elif re.match(r'^\d{4}-\d{2}-\d{2}$', year):  # Full date (YYYY-MM-DD)
-                # Set TDRC with full date
-                audio['TDRC'] = TDRC(encoding=3, text=year)
-                # Extract just the year for TYER
-                audio['TYER'] = TYER(encoding=3, text=year[:4])
-            else:
-                # Try to extract year from string
-                year_match = re.search(r'\b(19|20)\d{2}\b', year)
-                if year_match:
-                    year_found = year_match.group()
-                    audio['TYER'] = TYER(encoding=3, text=year_found)
-                    audio['TDRC'] = TDRC(encoding=3, text=year_found)
-        
-        audio.save()
-        return True
-    except Exception as e:
-        print(f"Error updating MP3 metadata: {e}")
-        return False
-
-
-def update_m4a_metadata(file_path, metadata):
-    """Update metadata for M4A files"""
-    try:
-        audio = MP4(file_path)
-        
-        # Map metadata keys to MP4 tags
-        tag_map = {
-            'title': '\xa9nam',
-            'artist': '\xa9ART',
-            'album': '\xa9alb',
-            'year': '\xa9day'
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
-        
-        for key, value in metadata.items():
-            if key in tag_map and value:
-                audio[tag_map[key]] = [value]
-        
-        audio.save()
-        return True
-    except Exception as e:
-        print(f"Error updating M4A metadata: {e}")
-        return False
 
+        response = requests.get(url, headers=headers, stream=True, timeout=10)
+        response.raise_for_status()
 
-def update_flac_metadata(file_path, metadata):
-    """Update metadata for FLAC files"""
-    try:
-        audio = FLAC(file_path)
-        
-        if 'title' in metadata:
-            audio['title'] = metadata['title']
-        if 'artist' in metadata:
-            audio['artist'] = metadata['artist']
-        if 'album' in metadata:
-            audio['album'] = metadata['album']
-        if 'year' in metadata:
-            audio['date'] = metadata['year']
-        
-        audio.save()
-        return True
+        # Return the image with appropriate headers
+        return Response(
+            response.iter_content(chunk_size=8192),
+            content_type=response.headers.get("content-type", "image/jpeg"),
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
     except Exception as e:
-        print(f"Error updating FLAC metadata: {e}")
-        return False
+        print(f"Error proxying image: {e}")
+        return "", 404
 
-def update_generic_metadata(file_path, metadata):
-    """Fallback for other audio formats using mutagen"""
-    try:
-        audio = MutagenFile(file_path, easy=True)
-        
-        if audio is None:
-            return False
-            
-        if 'title' in metadata:
-            audio['title'] = metadata['title']
-        if 'artist' in metadata:
-            audio['artist'] = metadata['artist']
-        if 'album' in metadata:
-            audio['album'] = metadata['album']
-        if 'year' in metadata:
-            audio['date'] = metadata['year']
-        
-        audio.save()
-        return True
-    except Exception as e:
-        print(f"Error updating generic metadata: {e}")
-        return False
 
 if __name__ == "__main__":
     app.run(debug=True)

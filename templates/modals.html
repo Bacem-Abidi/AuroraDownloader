@@ -191,9 +191,45 @@
   </div>
 
   <div class="modal-content">
-    <!-- Artwork preview (similar to info modal) -->
-    <div class="info-media">
-      <img id="edit-artwork" class="info-artwork" alt="Artwork" style="display: none;">
+    <!-- Artwork preview section -->
+    <div class="artwork-section">
+      <div class="artwork-preview-container">
+        <div class="artwork-preview">
+          <img id="edit-artwork-preview" class="info-artwork" alt="Artwork" style="display: none;">
+          <div id="edit-artwork-placeholder" class="artwork-placeholder">
+            <i class="fas fa-image"></i>
+            <span>No artwork</span>
+          </div>
+        </div>
+        <div class="artwork-actions">
+          <button type="button" id="edit-artwork-upload" class="btn btn-secondary btn-small">
+            <i class="fas fa-upload"></i> Upload
+          </button>
+          <button type="button" id="edit-artwork-url" class="btn btn-secondary btn-small">
+            <i class="fas fa-link"></i> URL
+          </button>
+          <button type="button" id="edit-artwork-remove" class="btn btn-danger btn-small">
+            <i class="fas fa-trash"></i> Remove
+          </button>
+        </div>
+      </div>
+      
+      <!-- Hidden file input for upload -->
+      <input type="file" id="edit-artwork-file" accept="image/*" style="display: none;">
+      
+      <!-- URL input container (initially hidden) -->
+      <div id="edit-artwork-url-container" class="artwork-url-container" style="display: none;">
+        <input type="text" id="edit-artwork-url-input" class="form-control" 
+               placeholder="https://example.com/image.jpg">
+        <div class="artwork-url-actions">
+          <button type="button" id="edit-artwork-url-cancel" class="btn btn-secondary btn-small">
+            Cancel
+          </button>
+          <button type="button" id="edit-artwork-url-load" class="btn btn-primary btn-small">
+            Load
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Metadata form with inline label-input pairs -->

@@ -161,17 +161,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // Clear current view and load from cache or server
     container.innerHTML = "";
 
-    if (cache.items.length > 0) {
+    if (cache.items.length > 0 && source != "failed") {
       renderLibrary(cache.items, true);
 
       libraryMeta.textContent =
         `${cache.items.length} / ${cache.totalCount} tracks` +
-        (source === "failed"
-          ? ""
-          : ` [${cache.totalDuration} listening time]`);
+        (source === "failed" ? "" : ` [${cache.totalDuration} listening time]`);
 
-      librarySize.textContent =
-        source === "failed" ? "" : `${cache.totalSize}`;
+      librarySize.textContent = source === "failed" ? "" : `${cache.totalSize}`;
     } else {
       loadLibrary(true, source);
     }
@@ -261,7 +258,6 @@ document.addEventListener("DOMContentLoaded", () => {
       cache.totalSize = data.total_size;
       cache.totalDuration = data.total_duration;
 
-      
       if (data.cached && data.cache_age != null) {
         cache.cacheAge = data.cache_age;
       }
@@ -272,9 +268,9 @@ document.addEventListener("DOMContentLoaded", () => {
           : "";
 
       libraryMeta.textContent =
-      `${cache.items.length} / ${cache.totalCount} tracks ` +
-      `[${cache.totalDuration} listening time]` +
-      cacheInfo;
+        `${cache.items.length} / ${cache.totalCount} tracks ` +
+        `[${cache.totalDuration} listening time]` +
+        cacheInfo;
 
       renderLibrary(cache.items.slice(-data.items.length)); // Only render new items
     } catch (e) {
@@ -328,23 +324,21 @@ document.addEventListener("DOMContentLoaded", () => {
       cache.totalSize = data.total_size;
       cache.totalDuration = data.total_duration;
 
-      
       if (data.cached && data.cache_age != null) {
         cache.cacheAge = data.cache_age;
       }
 
-    const cacheInfo =
-      cache.cacheAge != null
-        ? ` • cache ${formatCacheAge(cache.cacheAge)} ago`
-        : "";
+      const cacheInfo =
+        cache.cacheAge != null
+          ? ` • cache ${formatCacheAge(cache.cacheAge)} ago`
+          : "";
 
-    libraryMeta.textContent =
-      `${cache.items.length} / ${cache.totalCount} tracks` +
-      (source === "failed"
-        ? ""
-        : ` [${cache.totalDuration} listening time]`) +
-      cacheInfo;
-
+      libraryMeta.textContent =
+        `${cache.items.length} / ${cache.totalCount} tracks` +
+        (source === "failed"
+          ? ""
+          : ` [${cache.totalDuration} listening time]`) +
+        cacheInfo;
 
       librarySize.textContent = source === "failed" ? "" : `${cache.totalSize}`;
 
@@ -711,8 +705,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if(!editModal.classList.contains("hidden")) {
-      closeEditModal()
+    if (!editModal.classList.contains("hidden")) {
+      closeEditModal();
     }
 
     closeModal(); // existing info/failed modal closer
@@ -939,11 +933,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  let currentArtworkData = null;
+  let originalArtwork = null;
 
   // Add this function to open the edit modal
   function openEditModal(entry) {
     const isFailed = currentSource === "failed";
-    
+
     if (isFailed) {
       // Failed entries don't have audio files to edit metadata for
       showToast("Cannot edit metadata for failed downloads");
@@ -954,6 +950,9 @@ document.addEventListener("DOMContentLoaded", () => {
     editModal.classList.remove("hidden", "closing");
     overlay.classList.remove("hidden", "closing");
 
+    currentArtworkData = null;
+    originalArtwork = null;
+
     // Populate form with current metadata
     document.getElementById("edit-title").value = entry.title || "";
     document.getElementById("edit-artist").value = entry.artist || "";
@@ -961,30 +960,165 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("edit-year").value = entry.year || "";
 
     document.getElementById("edit-filename").textContent = entry.path;
-  
+
     // Store the entry path for the update
     document.getElementById("edit-modal").dataset.entryPath = entry.path;
-    
+
     // Store the entry path for the update
     document.getElementById("edit-modal").dataset.entryPath = entry.path;
-    
+
     // Show artwork if available
-    const artworkEl = document.getElementById("edit-artwork");
+    const previewImg = document.getElementById("edit-artwork-preview");
+    const placeholder = document.getElementById("edit-artwork-placeholder");
+
     if (entry.hasArtwork) {
-      artworkEl.src = `/artwork?path=${encodeURIComponent(entry.path)}`;
-      artworkEl.style.display = "block";
+      previewImg.src = `/artwork?path=${encodeURIComponent(entry.path)}`;
+      previewImg.style.display = "block";
+
+      previewImg.style.display = "block";
+      placeholder.style.display = "none";
+      originalArtwork = true;
     } else {
-      artworkEl.style.display = "none";
+      previewImg.style.display = "none";
+      placeholder.style.display = "flex";
+      originalArtwork = false;
     }
+    document.getElementById("edit-artwork-url-input").value = "";
+    document.getElementById("edit-artwork-url-container").style.display =
+      "none";
   }
 
+  const uploadBtn = document.getElementById("edit-artwork-upload");
+  const urlBtn = document.getElementById("edit-artwork-url");
+  const removeBtn = document.getElementById("edit-artwork-remove");
+  const fileInput = document.getElementById("edit-artwork-file");
+  const urlContainer = document.getElementById("edit-artwork-url-container");
+  const urlInput = document.getElementById("edit-artwork-url-input");
+  const urlCancel = document.getElementById("edit-artwork-url-cancel");
+  const urlLoad = document.getElementById("edit-artwork-url-load");
+  const previewImg = document.getElementById("edit-artwork-preview");
+  const placeholder = document.getElementById("edit-artwork-placeholder");
+
+  // Upload button handler
+  uploadBtn.addEventListener("click", () => {
+    fileInput.click();
+  });
+
+  // File input handler
+  fileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        showToast("Please select an image file");
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        showToast("Image must be less than 5MB");
+        return;
+      }
+
+      currentArtworkData = {
+        type: "upload",
+        data: file,
+      };
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImg.src = e.target.result;
+        previewImg.style.display = "block";
+        placeholder.style.display = "none";
+      };
+      reader.readAsDataURL(file);
+
+      // Hide URL container if visible
+      urlContainer.style.display = "none";
+    }
+  });
+
+  // URL button handler
+  urlBtn.addEventListener("click", () => {
+    urlContainer.style.display = "flex";
+    urlInput.focus();
+  });
+
+  // URL cancel button
+  urlCancel.addEventListener("click", () => {
+    urlContainer.style.display = "none";
+    urlInput.value = "";
+  });
+
+  // URL load button
+  urlLoad.addEventListener("click", async () => {
+    const url = urlInput.value.trim();
+
+    if (!url) {
+      showToast("Please enter a URL");
+      return;
+    }
+
+    try {
+      // Validate URL
+      new URL(url);
+
+      showToast("Loading image from URL...");
+
+      // Use a proxy to avoid CORS issues
+      const proxyUrl = `/proxy-image?url=${encodeURIComponent(url)}`;
+
+      // Create a temporary image to check if it loads
+      const tempImg = new Image();
+      tempImg.crossOrigin = "anonymous";
+
+      tempImg.onload = () => {
+        currentArtworkData = {
+          type: "url",
+          data: url,
+        };
+
+        // Show in preview
+        previewImg.src = proxyUrl;
+        previewImg.style.display = "block";
+        placeholder.style.display = "none";
+        urlContainer.style.display = "none";
+        showToast("Image loaded successfully");
+      };
+
+      tempImg.onerror = () => {
+        showToast("Failed to load image from URL");
+      };
+
+      tempImg.src = proxyUrl;
+    } catch (error) {
+      showToast("Invalid URL format");
+    }
+  });
+
+  // Remove artwork button
+  removeBtn.addEventListener("click", () => {
+    currentArtworkData = {
+      type: "remove",
+      data: null,
+    };
+
+    previewImg.style.display = "none";
+    placeholder.style.display = "flex";
+  });
+
   // Add close handler for edit modal
-  document.getElementById("edit-modal-close").addEventListener("click", closeEditModal);
-  document.getElementById("edit-modal-cancel").addEventListener("click", closeEditModal);
+  document
+    .getElementById("edit-modal-close")
+    .addEventListener("click", closeEditModal);
+  document
+    .getElementById("edit-modal-cancel")
+    .addEventListener("click", closeEditModal);
 
   function closeEditModal() {
     const editModal = document.getElementById("edit-modal");
-    
+
     editModal.classList.add("closing");
     overlay.classList.add("closing");
 
@@ -996,82 +1130,102 @@ document.addEventListener("DOMContentLoaded", () => {
 
         editModal.classList.add("hidden");
         overlay.classList.add("hidden");
-        
+
         // Clear stored data
         delete editModal.dataset.entryPath;
       },
-      { once: true }
+      { once: true },
     );
   }
 
   // Add save handler for edit modal
-  document.getElementById("edit-modal-save").addEventListener("click", async () => {
-    const editModal = document.getElementById("edit-modal");
-    const path = editModal.dataset.entryPath;
-    
-    if (!path) {
-      showToast("Error: No file selected");
-      return;
-    }
+  // Update the save handler to include artwork
+  document
+    .getElementById("edit-modal-save")
+    .addEventListener("click", async () => {
+      const editModal = document.getElementById("edit-modal");
+      const path = editModal.dataset.entryPath;
 
-    const metadata = {
-      title: document.getElementById("edit-title").value.trim(),
-      artist: document.getElementById("edit-artist").value.trim(),
-      album: document.getElementById("edit-album").value.trim(),
-      year: document.getElementById("edit-year").value.trim()
-    };
-
-    // Basic validation
-    if (!metadata.title) {
-      showToast("Title is required");
-      return;
-    }
-
-    try {
-      showToast("Updating metadata...");
-      
-      const response = await fetch("/metadata/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          path: path,
-          metadata: metadata
-        })
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        showToast("Metadata updated successfully!");
-        closeEditModal();
-        
-        // Refresh the current view to show updated metadata
-        if (mode === "playlist" && currentPlaylist) {
-          const cacheKey = `playlist:${currentPlaylist}`;
-          delete playlistCache[cacheKey];
-          await loadPlaylistPage(true);
-        } else {
-          libraryCache[currentSource] = {
-            items: [],
-            offset: 0,
-            hasMore: true,
-            totalCount: 0,
-            totalSize: 0,
-            totalDuration: 0,
-          };
-          await loadLibrary(true, currentSource);
-        }
-      } else {
-        showToast(`Error: ${result.error || "Failed to update metadata"}`);
+      if (!path) {
+        showToast("Error: No file selected");
+        return;
       }
-    } catch (error) {
-      console.error("Error updating metadata:", error);
-      showToast("Failed to update metadata");
-    }
-  });
 
+      const metadata = {
+        title: document.getElementById("edit-title").value.trim(),
+        artist: document.getElementById("edit-artist").value.trim(),
+        album: document.getElementById("edit-album").value.trim(),
+        year: document.getElementById("edit-year").value.trim(),
+      };
+
+      // Basic validation
+      if (!metadata.title) {
+        showToast("Title is required");
+        return;
+      }
+
+      try {
+        // Create FormData to handle file upload
+        const formData = new FormData();
+        formData.append("path", path);
+        formData.append("metadata", JSON.stringify(metadata));
+
+        // Handle artwork data
+        if (currentArtworkData) {
+          if (
+            currentArtworkData.type === "upload" &&
+            currentArtworkData.data instanceof File
+          ) {
+            formData.append("artwork_file", currentArtworkData.data);
+            formData.append("artwork_type", "upload");
+          } else if (currentArtworkData.type === "url") {
+            formData.append("artwork_url", currentArtworkData.data);
+            formData.append("artwork_type", "url");
+          } else if (currentArtworkData.type === "remove") {
+            formData.append("artwork_type", "remove");
+          }
+        } else if (originalArtwork === false) {
+          // No original artwork, no new artwork - don't send anything
+        } else {
+          // Keep original artwork
+          formData.append("artwork_type", "keep");
+        }
+
+        const response = await fetch("/metadata/update", {
+          method: "POST",
+          body: formData, // Note: Don't set Content-Type header for FormData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          showToast("Metadata updated successfully!");
+          closeEditModal();
+
+          // Refresh the current view
+          if (mode === "playlist" && currentPlaylist) {
+            const cacheKey = `playlist:${currentPlaylist}`;
+            delete playlistCache[cacheKey];
+            await loadPlaylistPage(true);
+          } else {
+            libraryCache[currentSource] = {
+              items: [],
+              offset: 0,
+              hasMore: true,
+              totalCount: 0,
+              totalSize: 0,
+              totalDuration: 0,
+            };
+            await loadLibrary(true, currentSource);
+          }
+        } else {
+          showToast(`Error: ${result.error || "Failed to update metadata"}`);
+        }
+      } catch (error) {
+        console.error("Error updating metadata:", error);
+        showToast("Failed to update metadata");
+      }
+    });
 
   function showToast(message) {
     // Create toast element if it doesn't exist
