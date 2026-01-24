@@ -55,6 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
       totalCount: 0,
       totalSize: 0,
       totalDuration: 0,
+      cacheAge: null,
     },
     failed: {
       items: [],
@@ -63,6 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
       totalCount: 0,
       totalSize: 0,
       totalDuration: 0,
+      cacheAge: null,
     },
   };
   // Playlists will be cached by their name
@@ -83,6 +85,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
     header.classList.toggle("is-library", source !== "failed");
     header.classList.toggle("is-failed", source === "failed");
+  }
+
+  function formatCacheAge(seconds) {
+    if (seconds == null) return "";
+
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+    return `${Math.floor(seconds / 86400)}d`;
   }
 
   async function loadPlaylists() {
@@ -145,9 +156,26 @@ document.addEventListener("DOMContentLoaded", () => {
     updateBulkActions();
     updateReloadActions();
 
+    const cache = libraryCache[source];
+
     // Clear current view and load from cache or server
     container.innerHTML = "";
-    loadLibrary(true, source);
+
+    if (cache.items.length > 0) {
+      renderLibrary(cache.items, true);
+
+      libraryMeta.textContent =
+        `${cache.items.length} / ${cache.totalCount} tracks` +
+        (source === "failed"
+          ? ""
+          : ` [${cache.totalDuration} listening time]`);
+
+      librarySize.textContent =
+        source === "failed" ? "" : `${cache.totalSize}`;
+    } else {
+      loadLibrary(true, source);
+    }
+    // loadLibrary(true, source);
   }
 
   async function selectPlaylist(name) {
@@ -163,11 +191,25 @@ document.addEventListener("DOMContentLoaded", () => {
     updateBulkActions();
     updateReloadActions();
 
+    const cacheKey = `playlist:${currentPlaylist}`;
+    const cache = playlistCache[cacheKey];
+
     // Clear current view and load from cache or server
     container.innerHTML = "";
     header.innerHTML = HEADERS.all;
 
-    loadPlaylistPage(true);
+    if (cache && cache.items.length > 0) {
+      renderLibrary(cache.items, true);
+
+      libraryMeta.textContent =
+        `${cache.items.length} / ${cache.totalCount} tracks` +
+        ` [${cache.totalDuration} listening time]`;
+
+      librarySize.textContent = cache.totalSize;
+    } else {
+      loadPlaylistPage(true);
+    }
+    // loadPlaylistPage(true);
   }
 
   async function loadPlaylistPage(reset = false) {
@@ -183,6 +225,7 @@ document.addEventListener("DOMContentLoaded", () => {
         totalCount: 0,
         totalSize: 0,
         totalDuration: 0,
+        cacheAge: null,
       };
     }
 
@@ -218,9 +261,20 @@ document.addEventListener("DOMContentLoaded", () => {
       cache.totalSize = data.total_size;
       cache.totalDuration = data.total_duration;
 
-      // Update UI with cache data
-      libraryMeta.textContent = `${cache.items.length} / ${cache.totalCount} tracks [${cache.totalDuration} listening time]`;
-      librarySize.textContent = `${cache.totalSize}`;
+      
+      if (data.cached && data.cache_age != null) {
+        cache.cacheAge = data.cache_age;
+      }
+
+      const cacheInfo =
+        cache.cacheAge != null
+          ? ` • cache ${formatCacheAge(cache.cacheAge)} ago`
+          : "";
+
+      libraryMeta.textContent =
+      `${cache.items.length} / ${cache.totalCount} tracks ` +
+      `[${cache.totalDuration} listening time]` +
+      cacheInfo;
 
       renderLibrary(cache.items.slice(-data.items.length)); // Only render new items
     } catch (e) {
@@ -274,21 +328,29 @@ document.addEventListener("DOMContentLoaded", () => {
       cache.totalSize = data.total_size;
       cache.totalDuration = data.total_duration;
 
-      // Update UI with cache data
-      const cacheText = data.cached ? " (Cached)" : "";
-      libraryMeta.textContent =
-        `${cache.items.length} / ${cache.totalCount} tracks` +
-        (source === "failed"
-          ? ""
-          : ` [${cache.totalDuration} listening time]`) +
-        cacheText;
+      
+      if (data.cached && data.cache_age != null) {
+        cache.cacheAge = data.cache_age;
+      }
+
+    const cacheInfo =
+      cache.cacheAge != null
+        ? ` • cache ${formatCacheAge(cache.cacheAge)} ago`
+        : "";
+
+    libraryMeta.textContent =
+      `${cache.items.length} / ${cache.totalCount} tracks` +
+      (source === "failed"
+        ? ""
+        : ` [${cache.totalDuration} listening time]`) +
+      cacheInfo;
+
 
       librarySize.textContent = source === "failed" ? "" : `${cache.totalSize}`;
 
       // Only render the newly loaded items
       renderLibrary(cache.items.slice(-data.items.length));
 
-      // Show toast for cache hits (only on first load/reset)
       if (reset && data.cached) {
         showToast(
           `${source === "failed" ? "Failed downloads" : "Library"} loaded from cache`,

@@ -542,6 +542,8 @@ def load_playlist(name):
         playlist_dir = request.args.get("playlistDir")
         offset = int(request.args.get("offset", 0))
         limit = int(request.args.get("limit", 30))
+        reset = request.args.get("reset", "false").lower() == "true"
+        used_cache = False
 
         playlist_dir = os.path.expanduser(os.path.expandvars(playlist_dir))
         audio_dir = os.path.expanduser(os.path.expandvars(audio_dir))
@@ -554,11 +556,16 @@ def load_playlist(name):
         playlist_key = f"playlist:{playlist_path}:{audio_dir}"
         playlist_mtime = os.path.getmtime(playlist_path)
 
+        # Clear cache if reset requested
+        if reset:
+            LIBRARY_CACHE.invalidate(playlist_key)
+
         # Check cache
         cached_data = LIBRARY_CACHE.get(playlist_key)
         if cached_data and cached_data.get("playlist_mtime") == playlist_mtime:
             # Cache is valid
             resolved_paths = cached_data["resolved_paths"]
+            used_cache = True
             total_size = cached_data["total_size"]
             total_duration = cached_data["total_duration"]
         else:
@@ -613,6 +620,11 @@ def load_playlist(name):
                 }
             )
 
+        cache_age = None
+        if used_cache and cached_data.get("cache_time"):
+            cache_age = int(time.time() - cached_data["cache_time"])
+
+
         return jsonify(
             {
                 "name": name,
@@ -623,7 +635,8 @@ def load_playlist(name):
                 "hasMore": offset + limit < total,
                 "total_size": format_bytes(total_size),
                 "total_duration": format_duration_human(total_duration),
-                "cached": cached_data is not None,
+                "cached": used_cache,
+                "cache_age": cache_age,
             }
         )
 
@@ -638,6 +651,7 @@ def library():
         offset = int(request.args.get("offset", 0))
         limit = int(request.args.get("limit", 30))
         reset = request.args.get("reset", "false").lower() == "true"
+        used_cache = False
 
         if not audio_dir:
             return jsonify({"error": "Missing audio directory"}), 400
@@ -658,6 +672,7 @@ def library():
 
         if cached_data:
             files = cached_data["files"]
+            used_cache = True
             total_size = cached_data["total_size"]
             total_duration = cached_data["total_duration"]
             cache_time = cached_data["cache_time"]
@@ -726,6 +741,10 @@ def library():
                 }
             )
 
+        cache_age = None
+        if used_cache and cached_data.get("cache_time"):
+            cache_age = int(time.time() - cached_data["cache_time"])
+
         return jsonify(
             {
                 "items": items,
@@ -735,7 +754,8 @@ def library():
                 "hasMore": offset + limit < len(all_files),
                 "total_size": format_bytes(cached_data["total_size"]),
                 "total_duration": format_duration_human(cached_data["total_duration"]),
-                "cached": True if cached_data.get("cache_time") else False,
+                "cached": used_cache,
+                "cache_age": cache_age,
             }
         )
 
