@@ -604,6 +604,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (btn.dataset.action === "info") {
       openInfoModal(entry);
+    } else if (btn.dataset.action === "edit") {
+      openEditModal(entry);
     }
   });
 
@@ -702,10 +704,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   overlay.addEventListener("click", () => {
     const retryModal = document.getElementById("retry-modal");
+    const editModal = document.getElementById("edit-modal");
 
     if (!retryModal.classList.contains("hidden")) {
       closeRetryModal();
       return;
+    }
+
+    if(!editModal.classList.contains("hidden")) {
+      closeEditModal()
     }
 
     closeModal(); // existing info/failed modal closer
@@ -716,10 +723,6 @@ document.addEventListener("DOMContentLoaded", () => {
       closeModal();
     }
   });
-
-  function openEditDialog(title, path) {
-    alert(`Edit metadata for:\n${title}`);
-  }
 
   function moveFile(path) {
     alert(`Move file:\n${path}`);
@@ -935,6 +938,140 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast(e.message);
     }
   });
+
+
+  // Add this function to open the edit modal
+  function openEditModal(entry) {
+    const isFailed = currentSource === "failed";
+    
+    if (isFailed) {
+      // Failed entries don't have audio files to edit metadata for
+      showToast("Cannot edit metadata for failed downloads");
+      return;
+    }
+
+    const editModal = document.getElementById("edit-modal");
+    editModal.classList.remove("hidden", "closing");
+    overlay.classList.remove("hidden", "closing");
+
+    // Populate form with current metadata
+    document.getElementById("edit-title").value = entry.title || "";
+    document.getElementById("edit-artist").value = entry.artist || "";
+    document.getElementById("edit-album").value = entry.album || "";
+    document.getElementById("edit-year").value = entry.year || "";
+
+    document.getElementById("edit-filename").textContent = entry.path;
+  
+    // Store the entry path for the update
+    document.getElementById("edit-modal").dataset.entryPath = entry.path;
+    
+    // Store the entry path for the update
+    document.getElementById("edit-modal").dataset.entryPath = entry.path;
+    
+    // Show artwork if available
+    const artworkEl = document.getElementById("edit-artwork");
+    if (entry.hasArtwork) {
+      artworkEl.src = `/artwork?path=${encodeURIComponent(entry.path)}`;
+      artworkEl.style.display = "block";
+    } else {
+      artworkEl.style.display = "none";
+    }
+  }
+
+  // Add close handler for edit modal
+  document.getElementById("edit-modal-close").addEventListener("click", closeEditModal);
+  document.getElementById("edit-modal-cancel").addEventListener("click", closeEditModal);
+
+  function closeEditModal() {
+    const editModal = document.getElementById("edit-modal");
+    
+    editModal.classList.add("closing");
+    overlay.classList.add("closing");
+
+    editModal.addEventListener(
+      "animationend",
+      () => {
+        editModal.classList.remove("closing");
+        overlay.classList.remove("closing");
+
+        editModal.classList.add("hidden");
+        overlay.classList.add("hidden");
+        
+        // Clear stored data
+        delete editModal.dataset.entryPath;
+      },
+      { once: true }
+    );
+  }
+
+  // Add save handler for edit modal
+  document.getElementById("edit-modal-save").addEventListener("click", async () => {
+    const editModal = document.getElementById("edit-modal");
+    const path = editModal.dataset.entryPath;
+    
+    if (!path) {
+      showToast("Error: No file selected");
+      return;
+    }
+
+    const metadata = {
+      title: document.getElementById("edit-title").value.trim(),
+      artist: document.getElementById("edit-artist").value.trim(),
+      album: document.getElementById("edit-album").value.trim(),
+      year: document.getElementById("edit-year").value.trim()
+    };
+
+    // Basic validation
+    if (!metadata.title) {
+      showToast("Title is required");
+      return;
+    }
+
+    try {
+      showToast("Updating metadata...");
+      
+      const response = await fetch("/metadata/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          path: path,
+          metadata: metadata
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        showToast("Metadata updated successfully!");
+        closeEditModal();
+        
+        // Refresh the current view to show updated metadata
+        if (mode === "playlist" && currentPlaylist) {
+          const cacheKey = `playlist:${currentPlaylist}`;
+          delete playlistCache[cacheKey];
+          await loadPlaylistPage(true);
+        } else {
+          libraryCache[currentSource] = {
+            items: [],
+            offset: 0,
+            hasMore: true,
+            totalCount: 0,
+            totalSize: 0,
+            totalDuration: 0,
+          };
+          await loadLibrary(true, currentSource);
+        }
+      } else {
+        showToast(`Error: ${result.error || "Failed to update metadata"}`);
+      }
+    } catch (error) {
+      console.error("Error updating metadata:", error);
+      showToast("Failed to update metadata");
+    }
+  });
+
 
   function showToast(message) {
     // Create toast element if it doesn't exist

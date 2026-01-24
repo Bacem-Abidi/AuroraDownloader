@@ -1587,6 +1587,11 @@ input[type="range"] {
   flex-direction: column;
 }
 
+.modal-footer.row {
+  flex-direction: row;
+}
+
+
 .modal-footer .actions {
   display: flex;
   justify-content: space-between;
@@ -1713,4 +1718,16 @@ input[type="range"] {
   background-color: #f8d7da;
   color: #721c24;
   border: 1px solid #f5c6cb;
+}
+
+
+/* Edit Modal Styles */
+.edit-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.metadata-form .info-row {
+    grid-template-columns: 60px 1fr;
 }

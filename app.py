@@ -13,7 +13,7 @@ from mutagen.mp4 import MP4
 from mutagen.flac import FLAC
 from datetime import datetime
 from ytmusicapi import YTMusic
-from mutagen.id3 import ID3, APIC
+from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TDRC, TDOR, TORY, TPUB, TCON, COMM, APIC
 from history import HistoryLogger
 from cache import LibraryCache
 from flask_bootstrap import Bootstrap5
@@ -863,6 +863,158 @@ def failed_library():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+
+@app.route('/metadata/update', methods=['POST'])
+def update_metadata():
+    try:
+        data = request.json
+        file_path = data.get('path')
+        metadata = data.get('metadata', {})
+
+        if not file_path or not os.path.exists(file_path):
+            return jsonify({'error': 'File not found'}), 404
+
+        # Update metadata based on file type
+        success = update_audio_metadata(file_path, metadata)
+
+        if success:
+            return jsonify({'success': True, 'message': 'Metadata updated'})
+        else:
+            return jsonify({'error': 'Failed to update metadata'}), 500
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def update_audio_metadata(file_path, metadata):
+    """Update metadata for various audio formats"""
+    try:
+        file_ext = os.path.splitext(file_path)[1].lower()
+
+        if file_ext in ['.mp3']:
+            return update_mp3_metadata(file_path, metadata)
+        elif file_ext in ['.m4a', '.mp4']:
+            return update_m4a_metadata(file_path, metadata)
+        elif file_ext in ['.flac']:
+            return update_flac_metadata(file_path, metadata)
+        else:
+            return update_generic_metadata(file_path, metadata)
+
+    except Exception as e:
+        print(f"Error updating metadata for {file_path}: {e}")
+        return False
+
+
+def update_mp3_metadata(file_path, metadata):
+    """Update ID3 tags for MP3 files"""
+    try:
+        try:
+            audio = ID3(file_path)
+        except Exception:
+            audio = ID3()
+        
+        if 'title' in metadata:
+            audio['TIT2'] = TIT2(encoding=3, text=metadata['title'])
+        if 'artist' in metadata:
+            audio['TPE1'] = TPE1(encoding=3, text=metadata['artist'])
+        if 'album' in metadata:
+            audio['TALB'] = TALB(encoding=3, text=metadata['album'])
+        if 'year' in metadata and metadata['year']:
+            year = str(metadata['year']).strip()
+            
+            # Validate year format (YYYY or YYYY-MM-DD)
+            if re.match(r'^\d{4}$', year):  # Just year (YYYY)
+                # Set TYER (Year) frame
+                audio['TYER'] = TYER(encoding=3, text=year)
+                # Also set TDRC (Recording time) as YYYY
+                audio['TDRC'] = TDRC(encoding=3, text=year)
+            elif re.match(r'^\d{4}-\d{2}-\d{2}$', year):  # Full date (YYYY-MM-DD)
+                # Set TDRC with full date
+                audio['TDRC'] = TDRC(encoding=3, text=year)
+                # Extract just the year for TYER
+                audio['TYER'] = TYER(encoding=3, text=year[:4])
+            else:
+                # Try to extract year from string
+                year_match = re.search(r'\b(19|20)\d{2}\b', year)
+                if year_match:
+                    year_found = year_match.group()
+                    audio['TYER'] = TYER(encoding=3, text=year_found)
+                    audio['TDRC'] = TDRC(encoding=3, text=year_found)
+        
+        audio.save()
+        return True
+    except Exception as e:
+        print(f"Error updating MP3 metadata: {e}")
+        return False
+
+
+def update_m4a_metadata(file_path, metadata):
+    """Update metadata for M4A files"""
+    try:
+        audio = MP4(file_path)
+        
+        # Map metadata keys to MP4 tags
+        tag_map = {
+            'title': '\xa9nam',
+            'artist': '\xa9ART',
+            'album': '\xa9alb',
+            'year': '\xa9day'
+        }
+        
+        for key, value in metadata.items():
+            if key in tag_map and value:
+                audio[tag_map[key]] = [value]
+        
+        audio.save()
+        return True
+    except Exception as e:
+        print(f"Error updating M4A metadata: {e}")
+        return False
+
+
+def update_flac_metadata(file_path, metadata):
+    """Update metadata for FLAC files"""
+    try:
+        audio = FLAC(file_path)
+        
+        if 'title' in metadata:
+            audio['title'] = metadata['title']
+        if 'artist' in metadata:
+            audio['artist'] = metadata['artist']
+        if 'album' in metadata:
+            audio['album'] = metadata['album']
+        if 'year' in metadata:
+            audio['date'] = metadata['year']
+        
+        audio.save()
+        return True
+    except Exception as e:
+        print(f"Error updating FLAC metadata: {e}")
+        return False
+
+def update_generic_metadata(file_path, metadata):
+    """Fallback for other audio formats using mutagen"""
+    try:
+        audio = MutagenFile(file_path, easy=True)
+        
+        if audio is None:
+            return False
+            
+        if 'title' in metadata:
+            audio['title'] = metadata['title']
+        if 'artist' in metadata:
+            audio['artist'] = metadata['artist']
+        if 'album' in metadata:
+            audio['album'] = metadata['album']
+        if 'year' in metadata:
+            audio['date'] = metadata['year']
+        
+        audio.save()
+        return True
+    except Exception as e:
+        print(f"Error updating generic metadata: {e}")
+        return False
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -88,8 +88,6 @@
   </div>
 </div>
 
-
-
 <!-- FAILED DOWNLOAD LAYOUT -->
 <div id="failed-modal" class="modal hidden failed-layout failed-only" role="dialog" aria-modal="true">
 
@@ -180,6 +178,58 @@
       <span class="info-label">Path</span>
       <span class="info-value mono" id="info-path"></span>
     </div>
+  </div>
+</div>
+
+<!-- Edit Metadata Modal -->
+<div id="edit-modal" class="modal hidden normal-only">
+  <div class="modal-header">
+    <h3>Edit Metadata</h3>
+    <button class="modal-close" id="edit-modal-close" aria-label="Close">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+
+  <div class="modal-content">
+    <!-- Artwork preview (similar to info modal) -->
+    <div class="info-media">
+      <img id="edit-artwork" class="info-artwork" alt="Artwork" style="display: none;">
+    </div>
+
+    <!-- Metadata form with inline label-input pairs -->
+    <div class="metadata-form">
+      <div class="info-row">
+        <span class="info-label">Title *</span>
+        <input type="text" id="edit-title" class="form-control edit-input" required>
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">Artist</span>
+        <input type="text" id="edit-artist" class="form-control edit-input">
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">Album</span>
+        <input type="text" id="edit-album" class="form-control edit-input">
+      </div>
+
+      <div class="info-row">
+        <span class="info-label">Year</span>
+        <input type="text" id="edit-year" class="form-control edit-input" maxlength="4" placeholder="YYYY">
+      </div>
+
+      <!-- File path display (read-only) -->
+      <div class="info-row">
+        <span class="info-label">File</span>
+        <span class="info-value mono" id="edit-filename">-</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer buttons -->
+  <div class="modal-footer row">
+    <button class="btn btn-secondary" id="edit-modal-cancel">Cancel</button>
+    <button class="btn btn-primary" id="edit-modal-save">Save Changes</button>
   </div>
 </div>
 {% endblock %}
