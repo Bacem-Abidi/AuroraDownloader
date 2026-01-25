@@ -7,3 +7,4 @@ requests==2.32.4
 ytmusicapi==1.10.3
 mutagen==1.47.0
 unidecode==1.4.0
+pillow==12.1.0
