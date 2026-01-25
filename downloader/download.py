@@ -67,6 +67,44 @@ class DownloadManager:
 
         return entries
 
+    def _get_best_audio_format_id(self, url, log_queue):
+        cmd = ["yt-dlp", "--list-formats", url]
+
+        log_queue.put("[FORMAT] Listing available formats")
+
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            universal_newlines=True,
+        )
+
+        audio_formats = []
+
+        for line in process.stdout:
+            line = line.strip()
+            if not line or line.startswith("ID"):
+                continue
+
+            # Typical line:
+            # 251 webm audio only tiny 160k , opus @160k
+            parts = line.split()
+            if "audio" in line and "only" in line:
+                format_id = parts[0]
+                audio_formats.append(format_id)
+
+        process.wait()
+
+        if not audio_formats:
+            log_queue.put("[FORMAT] No audio-only formats found")
+            return None
+
+        # yt-dlp lists worst → best, so take the last
+        chosen = audio_formats[-1]
+        log_queue.put(f"[FORMAT] Selected audio format id: {chosen}")
+        return chosen
+
     def retry_failed_entries(
         self,
         failed_entries,
@@ -143,9 +181,35 @@ class DownloadManager:
                     )
 
                     if not output_file:
-                        failed += 1
-                        log_queue.put("[RESULT] Retry failed")
-                        continue
+                        log_queue.put("[RETRY] Checking for different formats....")
+
+                        format_id = self._get_best_audio_format_id(url, log_queue)
+
+                        if not format_id:
+                            failed += 1
+                            log_queue.put("[RESULT] Retry failed (no formats)")
+                            continue
+
+                        log_queue.put(
+                            f"[RETRY] Retrying with discovered format {format_id}"
+                        )
+                        output_file = self._download_video(
+                            url,
+                            log_queue,
+                            quality,
+                            codec,
+                            audio_dir,
+                            lyrics_dir,
+                            is_playlist,
+                            overwrite,
+                            playlist_title,
+                            format_id=format_id,
+                        )
+
+                        if not output_file:
+                            failed += 1
+                            log_queue.put("[RESULT] Retry failed (format retry)")
+                            continue
 
                     # Remove from failed log
                     if self.fail_logger:
@@ -246,8 +310,30 @@ class DownloadManager:
             )
 
             if not output_file:
-                log_queue.put("[RETRY] Retry failed again")
-                return
+                log_queue.put("[RETRY] Checking for different formats....")
+
+                format_id = self._get_best_audio_format_id(url, log_queue)
+
+                if not format_id:
+                    log_queue.put("[RESULT] Retry failed (no formats)")
+                    return
+
+                log_queue.put(f"[RETRY] Retrying with discovered format {format_id}")
+                output_file = self._download_video(
+                    url,
+                    log_queue,
+                    quality,
+                    codec,
+                    audio_dir,
+                    lyrics_dir,
+                    is_playlist,
+                    overwrite,
+                    playlist_title,
+                    format_id=format_id,
+                )
+                if not output_file:
+                    log_queue.put("[RESULT] Retry failed (format retry)")
+                    return
 
             log_queue.put("[RETRY] Download succeeded")
 
@@ -624,6 +710,7 @@ class DownloadManager:
         is_playlist,
         overwrite=False,
         playlist_title=None,
+        format_id=None,
     ):
         """Download and process a single video using helper classes"""
         thumbnail_path = None
@@ -687,6 +774,7 @@ class DownloadManager:
                 uploader,
                 title,
                 sanitized_title,
+                format_id=format_id,
             )
             log_queue.put(f"[COMMAND] {' '.join(cmd)}")
 
@@ -769,29 +857,43 @@ class DownloadManager:
         artist,
         title,
         sanitized_title,
+        format_id=None,
     ):
         """Construct the yt-dlp command with appropriate parameters"""
-        cmd = [
-            "yt-dlp",
-            url,
-            "--extract-audio",
-            "--audio-format",
-            codec,
-            "--audio-quality",
-            quality_setting,
-            "--embed-metadata",
-            "--add-metadata",
-            "--parse-metadata",
-            f"title:{title}",
-            "--parse-metadata",
-            f"uploader:{artist}",
-            # '--output', f'{audio_dir}/%(title)s.%(ext)s',
-            "-o",
-            f"{audio_dir}/{sanitized_title}.%(ext)s",
-            "--verbose",
-            "--no-simulate",
-            "--newline",
-        ]
+        cmd = ["yt-dlp", url]
+
+        if format_id:
+            # Explicit format retry (from --list-formats)
+            cmd.extend(["-f", format_id])
+        else:
+            # Normal path: let yt-dlp choose best audio
+            cmd.extend(["-f", "bestaudio"])
+
+        cmd.extend(
+            [
+                "--extract-audio",
+                "--audio-format",
+                codec,
+                "--audio-quality",
+                quality_setting,
+            ]
+        )
+        cmd.extend(
+            [
+                "--embed-metadata",
+                "--add-metadata",
+                "--parse-metadata",
+                f"title:{title}",
+                "--parse-metadata",
+                f"uploader:{artist}",
+                # '--output', f'{audio_dir}/%(title)s.%(ext)s',
+                "-o",
+                f"{audio_dir}/{sanitized_title}.%(ext)s",
+                "--verbose",
+                "--no-simulate",
+                "--newline",
+            ]
+        )
 
         # Add year if available
         if year:

@@ -416,11 +416,8 @@ document.addEventListener("DOMContentLoaded", () => {
             <button data-action="info">
               <i class="fas fa-info-circle"></i> Info
             </button>
-            <button data-action="edit">
-              <i class="fas fa-pen"></i> Edit
-            </button>
-            <button data-action="move">
-              <i class="fas fa-folder-open"></i> Move location
+            <button data-action="retry">
+              <i class="fas fa-redo"></i> Retry Download
             </button>
           </div>
         </div>
@@ -443,9 +440,6 @@ document.addEventListener("DOMContentLoaded", () => {
             </button>
             <button data-action="edit">
               <i class="fas fa-pen"></i> Edit
-            </button>
-            <button data-action="move">
-              <i class="fas fa-folder-open"></i> Move location
             </button>
           </div>
         </div>
@@ -538,7 +532,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Initialize by loading the library
-  loadLibrary(true, "all");
+  container.innerHTML = "";
+  loadLibrary(false, "all");
   updateGridMode(currentSource);
   loadPlaylists();
 
@@ -600,6 +595,8 @@ document.addEventListener("DOMContentLoaded", () => {
       openInfoModal(entry);
     } else if (btn.dataset.action === "edit") {
       openEditModal(entry);
+    } else if (btn.dataset.action === "retry") {
+      retrySingleEntry(entry);
     }
   });
 
@@ -717,10 +714,6 @@ document.addEventListener("DOMContentLoaded", () => {
       closeModal();
     }
   });
-
-  function moveFile(path) {
-    alert(`Move file:\n${path}`);
-  }
 
   document.getElementById("copy-btn").addEventListener("click", () => {
     const text = document.getElementById("info-url").textContent;
@@ -901,6 +894,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       showToast("Retrying download…");
+      retrySingleEntry(activeFailedEntry);
+      closeModal();
+    } catch (e) {
+      showToast(e.message);
+    }
+  });
+
+  async function retrySingleEntry(entry) {
+    try {
+      // Get preferences if not already loaded
+      if (!audioDir) {
+        const prefs = await (await fetch("/preferences")).json();
+        audioDir = prefs.audioDir;
+        playlistDir = prefs.playlistDir;
+        lyricsDir = prefs.lyricsDir;
+      }
+
+      showToast("Retrying download…");
 
       const res = await fetch("/failed/retry", {
         method: "POST",
@@ -926,12 +937,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       showToast("Retry started");
-
-      closeModal();
     } catch (e) {
-      showToast(e.message);
+      console.error("Retry error:", e);
+      showToast(`Failed to retry: ${e.message}`);
     }
-  });
+  }
 
   let currentArtworkData = null;
   let originalArtwork = null;
