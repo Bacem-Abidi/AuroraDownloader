@@ -245,6 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
         `/playlist/${encodeURIComponent(currentPlaylist)}?` +
           `audioDir=${encodeURIComponent(audioDir)}` +
           `&playlistDir=${encodeURIComponent(playlistDir)}` +
+          `&lyricsDir=${encodeURIComponent(lyricsDir)}` +
           `&offset=${cache.offset}&limit=${limit}` +
           (reset ? "&reset=true" : ""),
       );
@@ -311,7 +312,7 @@ document.addEventListener("DOMContentLoaded", () => {
           playlistDir = prefs.playlistDir;
           lyricsDir = prefs.lyricsDir;
         }
-        endpoint = `/library?dir=${encodeURIComponent(audioDir)}&offset=${cache.offset}&limit=${limit}&reset=${reset}`;
+        endpoint = `/library?dir=${encodeURIComponent(audioDir)}&lyricsDir=${encodeURIComponent(lyricsDir)}&offset=${cache.offset}&limit=${limit}&reset=${reset}`;
       }
 
       const res = await fetch(endpoint);
@@ -593,6 +594,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (btn.dataset.action === "info") {
       openInfoModal(entry);
+      loadLyrics(entry);
     } else if (btn.dataset.action === "edit") {
       openEditModal(entry);
     } else if (btn.dataset.action === "retry") {
@@ -621,6 +623,66 @@ document.addEventListener("DOMContentLoaded", () => {
     type: document.getElementById("failed-type"),
     statuses: document.getElementById("failed-statuses"),
   };
+
+  function parseLRC(lrc) {
+    return lrc
+      .split("\n")
+      .map((line) => {
+        const match = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
+        if (!match) return null;
+
+        const minutes = Number(match[1]);
+        const seconds = Number(match[2]);
+        const time = minutes * 60 + seconds;
+
+        return {
+          time,
+          text: match[3].trim(),
+        };
+      })
+      .filter(Boolean);
+  }
+  async function loadLyrics(entry) {
+    const section = document.getElementById("info-lyrics-section");
+    const contentEl = document.getElementById("info-lyrics-content");
+    const badge = document.getElementById("lyrics-badge");
+
+    if (!entry.hasLyrics) {
+      section.classList.add("hidden");
+      return;
+    }
+
+    section.classList.remove("hidden");
+    contentEl.innerHTML = `<div class="lyrics-loading">Loading lyrics…</div>`;
+
+    try {
+      const res = await fetch(
+        `/lyrics?path=${encodeURIComponent(entry.path)}&lyricsDir=${encodeURIComponent(lyricsDir)}`,
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error);
+
+      if (data.format === "lrc") {
+        badge.textContent = "LRC";
+
+        const lines = parseLRC(data.content);
+        contentEl.innerHTML = lines
+          .map((l) => `<div class="lyrics-line">${l.text || "…"}</div>`)
+          .join("");
+      } else {
+        badge.textContent = "TXT";
+
+        contentEl.innerHTML = data.content
+          .split("\n")
+          .map((l) => `<div class="lyrics-line">${l}</div>`)
+          .join("");
+      }
+    } catch (e) {
+      contentEl.innerHTML = `<div class="lyrics-error">Failed to load lyrics</div>`;
+    }
+  }
 
   function openInfoModal(entry) {
     const isFailed = currentSource === "failed";

@@ -108,6 +108,24 @@ def get_audio_metadata(path):
         }
 
 
+def get_lyrics_info(audio_path, lyrics_dir):
+    base = os.path.splitext(os.path.basename(audio_path))[0]
+    lrc_path = os.path.join(lyrics_dir, base + ".lrc")
+
+    if os.path.isfile(lrc_path):
+        return {
+            "hasLyrics": True,
+            "lyricsFile": os.path.basename(lrc_path),
+            "mtime": os.path.getmtime(lrc_path),
+        }
+
+    return {
+        "hasLyrics": False,
+        "lyricsFile": None,
+        "mtime": None,
+    }
+
+
 def resolve_playlist_entry(entry, playlist_dir, audio_dir):
     entry = entry.strip()
 
@@ -527,6 +545,28 @@ def artwork():
     return Response(image, mimetype=mime)
 
 
+@app.route("/lyrics")
+def get_lyrics():
+    path = request.args.get("path")
+    lyrics_dir = expand_path(request.args.get("lyricsDir"))
+
+    if not path:
+        return jsonify({"error": "Missing path"}), 400
+
+    base = os.path.splitext(os.path.basename(path))[0]
+    lrc_path = os.path.join(lyrics_dir, base + ".lrc")
+
+    if not os.path.isfile(lrc_path):
+        return jsonify({"error": "Lyrics not found"}), 404
+
+    with open(lrc_path, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+
+    return jsonify(
+        {"content": content, "format": "lrc" if "[" in content[:200] else "text"}
+    )
+
+
 @app.route("/playlists", methods=["GET"])
 def list_playlists():
     playlist_dir = request.args.get("dir")
@@ -547,15 +587,18 @@ def list_playlists():
 @app.route("/playlist/<name>", methods=["GET"])
 def load_playlist(name):
     try:
-        audio_dir = request.args.get("audioDir")
-        playlist_dir = request.args.get("playlistDir")
+        audio_dir = request.args.get("audioDir", "Downloads")
+        playlist_dir = request.args.get("playlistDir", "Downloads/playlists")
+        lyrics_dir = request.args.get("lyricsDir", "Downloads/lyrics")
+
         offset = int(request.args.get("offset", 0))
         limit = int(request.args.get("limit", 30))
         reset = request.args.get("reset", "false").lower() == "true"
         used_cache = False
 
-        playlist_dir = os.path.expanduser(os.path.expandvars(playlist_dir))
-        audio_dir = os.path.expanduser(os.path.expandvars(audio_dir))
+        audio_dir = expand_path(audio_dir)
+        playlist_dir = expand_path(playlist_dir)
+        lyrics_dir = expand_path(lyrics_dir)
 
         playlist_path = os.path.join(playlist_dir, name)
         if not os.path.isfile(playlist_path):
@@ -614,15 +657,21 @@ def load_playlist(name):
         for path in slice_paths:
             # Check metadata cache
             metadata = LIBRARY_CACHE.get_metadata(path)
-            if metadata and not LIBRARY_CACHE.is_metadata_stale(path):
+            if metadata and not LIBRARY_CACHE.is_metadata_stale(path, lyrics_dir):
                 meta = metadata["metadata"]
+                lyrics_info = metadata.get(
+                    "lyrics", {"hasLyrics": False, "lyricsFile": None}
+                )
             else:
                 meta = get_audio_metadata(path)
-                LIBRARY_CACHE.set_metadata(path, meta)
+                lyrics_info = get_lyrics_info(path, lyrics_dir)
+                LIBRARY_CACHE.set_metadata(path, meta, lyrics_info)
 
             items.append(
                 {
                     **meta,
+                    "hasLyrics": lyrics_info["hasLyrics"],
+                    "lyricsFile": lyrics_info["lyricsFile"],
                     "filename": os.path.basename(path),
                     "path": path,
                     "type": "playlist",
@@ -656,6 +705,7 @@ def load_playlist(name):
 def library():
     try:
         audio_dir = request.args.get("dir")
+        lyrics_dir = request.args.get("lyricsDir", "Downloads/lyrics")
         offset = int(request.args.get("offset", 0))
         limit = int(request.args.get("limit", 30))
         reset = request.args.get("reset", "false").lower() == "true"
@@ -664,7 +714,8 @@ def library():
         if not audio_dir:
             return jsonify({"error": "Missing audio directory"}), 400
 
-        audio_dir = os.path.expanduser(os.path.expandvars(audio_dir))
+        audio_dir = expand_path(audio_dir)
+        lyrics_dir = expand_path(lyrics_dir)
 
         if not os.path.isdir(audio_dir):
             return jsonify({"error": "Invalid audio directory"}), 400
@@ -733,15 +784,20 @@ def library():
         for path in slice_files:
             # Check metadata cache first
             metadata = LIBRARY_CACHE.get_metadata(path)
-            if metadata and not LIBRARY_CACHE.is_metadata_stale(path):
+            if metadata and not LIBRARY_CACHE.is_metadata_stale(path, lyrics_dir):
                 meta = metadata["metadata"]
+                lyrics_info = metadata.get(
+                    "lyrics", {"hasLyrics": False, "lyricsFile": None}
+                )
             else:
                 meta = get_audio_metadata(path)
-                LIBRARY_CACHE.set_metadata(path, meta)
+                lyrics_info = get_lyrics_info(path, lyrics_dir)
+                LIBRARY_CACHE.set_metadata(path, meta, lyrics_info)
 
             items.append(
                 {
                     **meta,
+                    **lyrics_info,
                     "filename": os.path.basename(path),
                     "path": path,
                     "quality": "—",

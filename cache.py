@@ -59,18 +59,24 @@ class LibraryCache:
         with self.lock:
             return self.metadata_cache.get(filepath)
 
-    def set_metadata(self, filepath, metadata):
+    def set_metadata(self, filepath, metadata, lyrics_info=None):
         """Cache metadata for a file"""
         with self.lock:
             # Store metadata with file modification time
             stat = os.stat(filepath)
-            self.metadata_cache[filepath] = {
+
+            entry = {
                 "metadata": metadata,
                 "mtime": stat.st_mtime,
                 "size": stat.st_size,
             }
 
-    def is_metadata_stale(self, filepath):
+            if lyrics_info:
+                entry["lyrics"] = lyrics_info
+
+            self.metadata_cache[filepath] = entry
+
+    def is_metadata_stale(self, filepath, lyrics_dir=None):
         """Check if cached metadata is stale"""
         with self.lock:
             cached = self.metadata_cache.get(filepath)
@@ -79,9 +85,31 @@ class LibraryCache:
 
             try:
                 stat = os.stat(filepath)
-                return (
-                    stat.st_mtime != cached["mtime"] or stat.st_size != cached["size"]
-                )
+                if stat.st_mtime != cached["mtime"] or stat.st_size != cached["size"]:
+                    return True
+
+                # ---- LYRICS CHECK ----
+                if lyrics_dir:
+                    base = os.path.splitext(os.path.basename(filepath))[0]
+                    lrc_path = os.path.join(lyrics_dir, base + ".lrc")
+
+                    cached_lyrics = cached.get("lyrics")
+
+                    if os.path.isfile(lrc_path):
+                        lrc_mtime = os.path.getmtime(lrc_path)
+
+                        # lyrics newly added or modified
+                        if (
+                            not cached_lyrics
+                            or not cached_lyrics.get("hasLyrics")
+                            or cached_lyrics.get("mtime") != lrc_mtime
+                        ):
+                            return True
+                    else:
+                        # lyrics were deleted
+                        if cached_lyrics and cached_lyrics.get("hasLyrics"):
+                            return True
+
             except Exception as e:
                 return True
 

@@ -1242,6 +1242,12 @@ details summary {
   align-items: center;
 }
 
+.info-column {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
 .info-label {
   color: var(--text-secondary);
   font-size: 0.85rem;
@@ -1812,4 +1818,49 @@ input[type="range"] {
 .artwork-url-actions {
   display: flex;
   gap: 8px;
+}
+
+.info-lyrics {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.info-lyrics-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  opacity: 0.8;
+  margin-bottom: 0.5rem;
+}
+
+.lyrics-badge {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+}
+
+.info-lyrics-content {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.lyrics-line {
+  padding: 5px 0;
+  opacity: 0.9;
+}
+
+.lyrics-loading,
+.lyrics-error {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+#info-modal .artwork-section,
+#info-modal .artwork-section .artwork-preview-container {
+  margin-bottom: 0px;
 }

@@ -140,24 +140,43 @@
   </div>
 
   <div class="info-media">
-    <img id="info-artwork" class="info-artwork" alt="Artwork">
+    <!-- <img id="info-artwork" class="info-artwork" alt="Artwork"> -->
     <div class="info-meta">
 
-      <span class="info-duration" id="info-duration"></span>
+      <!-- <span class="info-duration" id="info-duration"></span> -->
     </div>
   </div>
+      <div class="artwork-section">
+      <div class="artwork-preview-container">
+        <div class="artwork-preview">
+          <img id="info-artwork" class="info-artwork" alt="Artwork">
+          <div id="edit-artwork-placeholder" class="artwork-placeholder">
+            <i class="fas fa-image"></i>
+            <span>No artwork</span>
+          </div>
+        </div>
+        <div class="artwork-actions">
+          <div class="info-column">
+            <span class="info-label">Title</span>
+            <span class="info-value" id="info-title"></span>
+          </div>
+
+          <div class="info-column">
+            <span class="info-label">Artist</span>
+            <span class="info-value" id="info-artist"></span>
+          </div>
+
+           <div class="info-column">
+            <span class="info-label">Duration</span>
+      <span class="info-duration" id="info-duration"></span>
+          </div>
+        </div>
+      </div>
+    </div>
 
 
   <div class="modal-content">
-    <div class="info-row">
-      <span class="info-label">Title</span>
-      <span class="info-value" id="info-title"></span>
-    </div>
 
-    <div class="info-row">
-      <span class="info-label">Artist</span>
-      <span class="info-value" id="info-artist"></span>
-    </div>
 
     <div class="info-row">
       <span class="info-label">Album</span>
@@ -177,6 +196,16 @@
     <div class="info-row">
       <span class="info-label">Path</span>
       <span class="info-value mono" id="info-path"></span>
+    </div>
+    <div class="info-section info-lyrics hidden" id="info-lyrics-section">
+      <div class="info-lyrics-header">
+        <span>Lyrics</span>
+        <span class="lyrics-badge" id="lyrics-badge">LRC</span>
+      </div>
+
+      <div class="info-lyrics-content" id="info-lyrics-content">
+        <!-- lyrics injected here -->
+      </div>
     </div>
   </div>
 </div>
