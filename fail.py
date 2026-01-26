@@ -62,80 +62,133 @@ class FailLogger:
         except Exception:
             return [], file_path
 
+    # def remove_entry(self, entry_to_remove):
+    #     """Remove a failed entry after successful retry"""
+    #     entries, file_path = self.load_week_entries()
+    #     if not entries:
+    #         return False
+    #
+    #     new_entries = [
+    #         e
+    #         for e in entries
+    #         if not (
+    #             e.get("type") == entry_to_remove.get("type")
+    #             and e.get("url") == entry_to_remove.get("url")
+    #             and e.get("playlist_title") == entry_to_remove.get("playlist")
+    #         )
+    #     ]
+    #
+    #     with open(file_path, "w", encoding="utf-8") as f:
+    #         json.dump(new_entries, f, indent=2, ensure_ascii=False)
+    #
+    #     return True
+
+    def _same_entry(self, a, b):
+        return (
+            a.get("type") == b.get("type")
+            and a.get("url") == b.get("url")
+            and a.get("playlist_title") == b.get("playlist")
+        )
+
     def remove_entry(self, entry_to_remove):
-        """Remove a failed entry after successful retry"""
-        entries, file_path = self.load_week_entries()
-        if not entries:
-            return False
+        """Remove a failed entry from ALL week files"""
+        removed = False
 
-        new_entries = [
-            e
-            for e in entries
-            if not (
-                e.get("type") == entry_to_remove.get("type")
-                and e.get("url") == entry_to_remove.get("url")
-                and e.get("playlist_title") == entry_to_remove.get("playlist")
-            )
-        ]
+        for filename in os.listdir(self.fail_dir):
+            if not filename.startswith("fail_") or not filename.endswith(".json"):
+                continue
 
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(new_entries, f, indent=2, ensure_ascii=False)
+            path = os.path.join(self.fail_dir, filename)
 
-        return True
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    entries = json.load(f)
+            except Exception:
+                continue
+
+            new_entries = [
+                e for e in entries if not self._same_entry(e, entry_to_remove)
+            ]
+
+            if len(new_entries) != len(entries):
+                removed = True
+                if new_entries:
+                    with open(path, "w", encoding="utf-8") as f:
+                        json.dump(new_entries, f, indent=2, ensure_ascii=False)
+                else:
+                    # Remove empty week file
+                    os.remove(path)
+
+        return removed
 
     def log_fail(self, entry):
-        """Log a failed entry to the fail file with merge support"""
+        """
+        Log a failed entry with GLOBAL merge across all week files
+        """
         try:
-            file_path = self.get_week_file()
+            entry = entry.copy()
 
-            # Load existing entries
+            # Ensure statuses list
+            status = entry.pop("status", None)
+            if status:
+                entry["statuses"] = [status]
+            else:
+                entry.setdefault("statuses", [])
+
+            # ---- SEARCH ALL FILES FOR MERGE ----
+            for filename in os.listdir(self.fail_dir):
+                if not filename.startswith("fail_") or not filename.endswith(".json"):
+                    continue
+
+                path = os.path.join(self.fail_dir, filename)
+
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        entries = json.load(f)
+                except Exception:
+                    continue
+
+                for existing in entries:
+                    if (
+                        existing.get("type") == entry.get("type")
+                        and existing.get("url") == entry.get("url")
+                        and existing.get("playlist_title")
+                        == entry.get("playlist_title")
+                    ):
+                        # ---- MERGE ----
+                        if (
+                            existing.get("index") is None
+                            and entry.get("index") is not None
+                        ):
+                            existing["index"] = entry["index"]
+
+                        existing_statuses = existing.get("statuses", [])
+                        for s in entry["statuses"]:
+                            if s not in existing_statuses:
+                                existing_statuses.append(s)
+
+                        existing["statuses"] = existing_statuses
+                        existing["timestamp"] = entry.get("timestamp")
+
+                        with open(path, "w", encoding="utf-8") as f:
+                            json.dump(entries, f, indent=2, ensure_ascii=False)
+
+                        return True
+
+            # ---- NOT FOUND → APPEND TO CURRENT WEEK ----
+            week_file = self.get_week_file()
             entries = []
-            if os.path.exists(file_path):
-                with open(file_path, "r", encoding="utf-8") as f:
+
+            if os.path.exists(week_file):
+                with open(week_file, "r", encoding="utf-8") as f:
                     try:
                         entries = json.load(f)
                     except json.JSONDecodeError:
                         entries = []
 
-            merged = False
+            entries.append(entry)
 
-            for existing in entries:
-                if (
-                    existing.get("type") == entry.get("type")
-                    and existing.get("url") == entry.get("url")
-                    and existing.get("playlist_title") == entry.get("playlist_title")
-                ):
-                    # ---- MERGE ----
-
-                    # Prefer non-null index
-                    if existing.get("index") is None and entry.get("index") is not None:
-                        existing["index"] = entry["index"]
-
-                    # Merge statuses
-                    existing_statuses = existing.get("statuses")
-                    if not existing_statuses:
-                        existing_statuses = [existing.get("status")]
-
-                    if entry.get("status") not in existing_statuses:
-                        existing_statuses.append(entry.get("status"))
-
-                    existing.pop("status", None)
-                    existing["statuses"] = existing_statuses
-
-                    # Update timestamp to latest
-                    existing["timestamp"] = entry.get("timestamp")
-
-                    merged = True
-                    break
-
-            # If no merge happened, add as new entry
-            if not merged:
-                entry = entry.copy()
-                entry["statuses"] = [entry.pop("status")]
-                entries.append(entry)
-
-            # Write back
-            with open(file_path, "w", encoding="utf-8") as f:
+            with open(week_file, "w", encoding="utf-8") as f:
                 json.dump(entries, f, indent=2, ensure_ascii=False)
 
             return True
