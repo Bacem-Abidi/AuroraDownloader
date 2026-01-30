@@ -297,4 +297,58 @@
     <button class="btn btn-primary" id="edit-modal-save">Save Changes</button>
   </div>
 </div>
+
+
+<!-- Fix Playlist Modal -->
+<div id="fix-playlist-modal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Fix Playlist</h3>
+      <button class="modal-close" id="fix-playlist-modal-close" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="modal-content">
+      <div class="form-group">
+        <label for="fix-playlist-url">Playlist URL</label>
+        <input type="text" 
+               id="fix-playlist-url" 
+               class="form-control" 
+               placeholder="https://www.youtube.com/playlist?list=..." />
+        <small class="info-small-text text-muted">
+          Enter the YouTube playlist URL to fix. The system will compare online tracks with local files using video IDs.
+        </small>
+      </div>
+
+      <div class="options-grid" style="margin-top: 10px;">
+        <label>Options</label>
+        <div class="option-row">
+          <label for="fix-download-missing">Download missing songs</label>
+          <input type="checkbox" id="fix-download-missing" class="form-check-input" checked>
+        </div>
+        <div class="option-row">
+          <label for="fix-create-log">Create detailed log file</label>
+          <input type="checkbox" id="fix-create-log" class="form-check-input" checked>
+        </div>
+      </div>
+
+      <div class="alert alert-info" style="margin-top: 10px;">
+        <i class="fas fa-info-circle"></i>
+        <strong>How it works:</strong><br>
+        1. Compares online playlist with local files using video IDs<br>
+        2. Downloads missing tracks<br>
+        3. Updates playlist order<br>
+        4. Shows summary of changes
+      </div>
+    </div>
+
+    <div class="modal-footer row">
+      <button id="fix-playlist-cancel" class="btn btn-secondary">Cancel</button>
+      <button id="fix-playlist-submit" class="btn btn-primary">
+        <i class="fas fa-wrench"></i> Fix Playlist
+      </button>
+    </div>
+  </div>
+</div>
 {% endblock %}

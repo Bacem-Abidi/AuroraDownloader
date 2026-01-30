@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime, timedelta
 
 class PlaylistManager:
@@ -96,3 +97,53 @@ class PlaylistManager:
         
         # Case-insensitive comparison
         return abs_path.lower()
+
+    def _scan_local_files(self, audio_dir):
+        """Scan directory for audio files and extract video IDs"""
+        local_files = []
+
+        for root, _, files in os.walk(audio_dir):
+            for filename in files:
+                if filename.lower().endswith(
+                    (".mp3", ".flac", ".m4a", ".ogg", ".opus", ".wav")
+                ):
+                    path = os.path.join(root, filename)
+                    video_id = self._extract_video_id_from_filename(filename)
+
+                    if video_id:
+                        local_files.append(
+                            {
+                                "path": path,
+                                "filename": filename,
+                                "video_id": video_id,
+                                "size": os.path.getsize(path),
+                            }
+                        )
+
+        return local_files
+
+    def _extract_video_id_from_filename(self, filename):
+        """Extract YouTube video ID from filename (format: title_id.ext)"""
+        # Remove extension
+        basename = os.path.splitext(filename)[0]
+
+        # Look for YouTube ID pattern (11 characters at the end after underscore)
+        match = re.search(r"_([A-Za-z0-9_-]{11})$", basename)
+
+        if match:
+            return match.group(1)
+
+        # Alternative pattern: id at the end without underscore
+        match = re.search(r"([A-Za-z0-9_-]{11})$", basename)
+
+        return match.group(1) if match else None
+
+    def _index_files_by_video_id(self, local_files):
+        """Create dictionary of files indexed by video ID"""
+        files_by_id = {}
+
+        for file_info in local_files:
+            if file_info["video_id"]:
+                files_by_id[file_info["video_id"]] = file_info
+
+        return files_by_id

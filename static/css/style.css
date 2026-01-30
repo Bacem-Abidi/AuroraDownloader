@@ -109,6 +109,10 @@ input:focus {
   flex: 1;
 }
 
+.info-small-text {
+  font-size: 12px;
+}
+
 .btn {
   padding: 12px 20px;
   border-radius: 8px;
@@ -169,6 +173,12 @@ input:focus {
 .option {
   display: flex;
   flex-direction: column;
+}
+
+.option-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
 }
 
 .option label {
@@ -928,7 +938,9 @@ details summary {
 .sidebar-list {
   list-style: none;
   padding: 0;
-  margin: 5px 0;
+  margin: 10px 0;
+  max-height: 300px;
+  overflow: auto;
 }
 
 .sidebar-list li {
@@ -1022,7 +1034,8 @@ details summary {
 .col-title,
 .col-artist,
 .col-album,
-.col-url {
+.col-url,
+.col-playlist {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1030,6 +1043,10 @@ details summary {
 
 .col-title {
   margin-left: 10px;
+}
+
+.col-index {
+  text-align: center;
 }
 
 .col-duration {
@@ -1406,6 +1423,13 @@ details summary {
 .retry-btn {
   background: var(--highlight);
   color: #000;
+}
+
+#retry-playlist-select {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 160px;
 }
 
 .copy-btn {
@@ -1863,4 +1887,20 @@ input[type="range"] {
 #info-modal .artwork-section,
 #info-modal .artwork-section .artwork-preview-container {
   margin-bottom: 0px;
+}
+
+.alert {
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.alert-info {
+  background-color: var(--bg-primary);
+  border: var(--bg-primary);
+  color: var(--highlight);
+}
+
+.alert i {
+  margin-right: 8px;
 }

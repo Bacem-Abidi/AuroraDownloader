@@ -17,6 +17,7 @@ from .mpd_manager import MPDManager
 from history import HistoryLogger
 from migration import MigrationLogger
 from fail import FailLogger
+from logs import Logs
 from ytmusicapi import YTMusic
 from mutagen.id3 import ID3, APIC
 from mutagen import File as MutagenFile
@@ -37,6 +38,7 @@ class DownloadManager:
         self.fail_logger = None
         self.ytmusic = YTMusic()
         self.migration_logger = None
+        self.logs = None
         self.custom_temp_dir = "temp"
         os.makedirs(self.custom_temp_dir, exist_ok=True)
         config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
@@ -49,6 +51,232 @@ class DownloadManager:
         self.mpd_manager = MPDManager()
 
         self.migration_choices = {}
+
+    def start_fix_playlist(
+        self,
+        url,
+        operation_id,
+        audio_dir,
+        lyrics_dir,
+        playlist_dir,
+        options,
+        playlist_options,
+        mpd_options,
+        log_dir,
+        history_dir,
+        fail_dir,
+    ):
+        """Start a playlist fix operation in a separate thread"""
+        log_queue = Queue()
+        self.log_queues[operation_id] = log_queue
+        self.active_downloads[operation_id] = True
+
+        thread = threading.Thread(
+            target=self._fix_playlist_thread,
+            args=(
+                url,
+                operation_id,
+                log_queue,
+                audio_dir,
+                lyrics_dir,
+                playlist_dir,
+                options,
+                playlist_options,
+                mpd_options,
+                log_dir,
+                history_dir,
+                fail_dir,
+            ),
+            daemon=True,
+        )
+        thread.start()
+
+    def _fix_playlist_thread(
+        self,
+        url,
+        operation_id,
+        log_queue,
+        audio_dir,
+        lyrics_dir,
+        playlist_dir,
+        options,
+        playlist_options,
+        mpd_options,
+        log_dir,
+        history_dir,
+        fail_dir,
+    ):
+        if log_dir:
+            self.logs = Logs(log_dir)
+
+        if history_dir:
+            self.history_logger = HistoryLogger(history_dir)
+
+        if fail_dir:
+            self.fail_logger = FailLogger(fail_dir)
+
+        if playlist_options is None:
+            playlist_options = {"relative_paths": True, "filenames_only": False}
+        try:
+            log_queue.put(f"[FIX PLAYLIST] Starting playlist fix for: {url}")
+
+            # Get playlist info
+            playlist_metadata_cmd = ["yt-dlp", url, "--dump-json", "--flat-playlist"]
+
+            log_queue.put("[FIX PLAYLIST] Fetching playlist metadata...")
+            result = subprocess.run(
+                playlist_metadata_cmd, capture_output=True, text=True, check=True
+            )
+
+            playlist_entries = [
+                json.loads(line) for line in result.stdout.splitlines() if line.strip()
+            ]
+
+            if not playlist_entries:
+                log_queue.put("[ERROR] No playlist entries found")
+                return
+
+            playlist_title = playlist_entries[0].get(
+                "playlist_title", "Unknown Playlist"
+            )
+            sanitized_title = re.sub(r"[^\w\-_\. ]", "", playlist_title)
+
+            log_queue.put(
+                f"[FIX PLAYLIST] Playlist: {playlist_title} ({len(playlist_entries)} tracks)"
+            )
+
+            # Scan local files for video IDs
+            log_queue.put("[FIX PLAYLIST] Scanning local files...")
+            local_files = self.playlist_manager._scan_local_files(audio_dir)
+            local_files_by_id = self.playlist_manager._index_files_by_video_id(
+                local_files
+            )
+
+            # Track operations
+            results = {
+                "playlist_title": playlist_title,
+                "total_tracks": len(playlist_entries),
+                "existing_tracks": 0,
+                "downloaded_tracks": 0,
+                "updated_tracks": 0,
+                "removed_tracks": 0,
+                "missing_tracks": 0,
+                "log_entries": [],
+            }
+
+            # Process each playlist entry
+            playlist_files = []
+
+            for i, entry in enumerate(playlist_entries, 1):
+                video_id = entry.get("id")
+                title = entry.get("title", "Unknown")
+
+                log_queue.put(
+                    f"[FIX PLAYLIST] Processing {i}/{len(playlist_entries)}: {title}"
+                )
+
+                if video_id in local_files_by_id:
+                    # File exists
+                    results["existing_tracks"] += 1
+                    local_file = local_files_by_id[video_id]
+                    playlist_files.append(local_file["path"])
+
+                    log_entry = f"Exists: {title}"
+
+                else:
+                    # File missing, download if requested
+                    if options.get("download_missing", True):
+                        video_url = f"https://www.youtube.com/watch?v={video_id}"
+                        log_queue.put(
+                            f"[FIX PLAYLIST] Downloading missing track: {title}"
+                        )
+
+                        try:
+                            output_file = self._download_video(
+                                video_url,
+                                log_queue,
+                                "best",  # Use default quality
+                                "mp3",  # Use default codec
+                                audio_dir,
+                                lyrics_dir,
+                                True,  # is_playlist
+                                False,  # overwrite
+                                playlist_title,
+                            )
+
+                            if output_file:
+                                playlist_files.append(output_file)
+                                results["downloaded_tracks"] += 1
+                                log_entry = f"Downloaded: {title}"
+                            else:
+                                results["missing_tracks"] += 1
+                                log_entry = f"Download failed: {title}"
+                                self._log_fail(
+                                    True,
+                                    playlist_title,
+                                    i,
+                                    video_url,
+                                    "best",  # Use default quality
+                                    "mp3",  # Use default codec
+                                    "Failed (didn't download for some reason)",
+                                )
+
+                        except Exception as e:
+                            results["missing_tracks"] += 1
+                            log_entry = f"Download error: {title} - {str(e)}"
+                            self._log_fail(
+                                True,
+                                playlist_title,
+                                i,
+                                video_url,
+                                "best",  # Use default quality
+                                "mp3",  # Use default codec
+                                f"Failed: {str(e)}",
+                            )
+                    else:
+                        results["missing_tracks"] += 1
+                        log_entry = f"Missing: {title}"
+
+                results["log_entries"].append(log_entry)
+
+            # Update playlist file
+            if playlist_files:
+                self.playlist_manager.create_m3u_playlist(
+                    sanitized_title,
+                    playlist_files,
+                    playlist_dir,
+                    playlist_options,
+                    log_queue,
+                )
+                log_queue.put(
+                    f"[FIX PLAYLIST] Playlist file updated: {sanitized_title}.m3u"
+                )
+
+            # Save log if requested
+            if options.get("create_log", True):
+                log_file = self.logs.save_fix_log(results, log_dir)
+                results["log_file"] = log_file
+                log_queue.put(f"[FIX PLAYLIST] Log saved to: {log_file}")
+
+            # Send summary
+            log_queue.put(f"[FIX PLAYLIST SUMMARY]")
+            log_queue.put(f"Playlist: {results['playlist_title']}")
+            log_queue.put(f"Total tracks: {results['total_tracks']}")
+            log_queue.put(f"Existing: {results['existing_tracks']}")
+            log_queue.put(f"Downloaded: {results['downloaded_tracks']}")
+            log_queue.put(f"Updated: {results['updated_tracks']}")
+            log_queue.put(f"Removed: {results['removed_tracks']}")
+            log_queue.put(f"Missing: {results['missing_tracks']}")
+
+            log_queue.put("[FIX PLAYLIST COMPLETE]")
+
+        except Exception as e:
+            log_queue.put(f"[ERROR] Playlist fix failed: {str(e)}")
+        finally:
+            self.active_downloads.pop(operation_id, None)
+            if mpd_options and mpd_options.get("update_mpd"):
+                self.mpd_manager.update_mpd(mpd_options, log_queue)
+            log_queue.put("[END]")
 
     def _select_failed_entries(self, fail_dir, mode, playlist=None, count=0):
         if fail_dir:

@@ -1015,5 +1015,65 @@ def proxy_image():
         return "", 404
 
 
+@app.route("/fix_playlist", methods=["POST"])
+def fix_playlist():
+    try:
+        data = request.json
+        url = data.get("url")
+        options = data.get("options", {})
+        audio_dir = data.get("audio_dir", "Downloads")
+        lyrics_dir = data.get("lyrics_dir", "Downloads/lyrics")
+        playlist_dir = data.get("playlist_dir", "Downloads/playlists")
+        playlist_options = data.get("playlist_options", {})
+        mpd_options = data.get("mpd_options", {})
+
+        if not url:
+            return jsonify({"error": "Missing playlist URL"}), 400
+
+        audio_dir = expand_path(audio_dir)
+        lyrics_dir = expand_path(lyrics_dir)
+        playlist_dir = expand_path(playlist_dir)
+
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+        os.makedirs(log_dir, exist_ok=True)
+
+        history_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "history"
+        )
+        os.makedirs(history_dir, exist_ok=True)
+
+        fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
+        os.makedirs(fail_dir, exist_ok=True)
+
+        # Generate a unique ID for this operation
+        operation_id = f"fix-{int(time.time() * 1000)}"
+
+        # Start the fix in background thread
+        download_manager.start_fix_playlist(
+            url=url,
+            operation_id=operation_id,
+            audio_dir=audio_dir,
+            lyrics_dir=lyrics_dir,
+            playlist_dir=playlist_dir,
+            options=options,
+            playlist_options=playlist_options,
+            mpd_options=mpd_options,
+            log_dir=log_dir,
+            history_dir=history_dir,
+            fail_dir=fail_dir,
+        )
+
+        return jsonify(
+            {
+                "status": "started",
+                "download_id": operation_id,
+                "message": "Playlist fix operation started",
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(debug=True)

@@ -18,6 +18,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const librarySize = document.getElementById("library-size");
   const libraryMeta = document.getElementById("library-meta");
 
+  // Fix Playlist functionality
+  const fixPlaylistBtn = document.getElementById("fix-playlist-btn");
+  const fixPlaylistModal = document.getElementById("fix-playlist-modal");
+  const fixPlaylistClose = document.getElementById("fix-playlist-modal-close");
+  const fixPlaylistCancel = document.getElementById("fix-playlist-cancel");
+  const fixPlaylistSubmit = document.getElementById("fix-playlist-submit");
+  const fixPlaylistUrl = document.getElementById("fix-playlist-url");
+
   const header = document.getElementById("library-row-header");
 
   const HEADERS = {
@@ -80,6 +88,46 @@ document.addEventListener("DOMContentLoaded", () => {
   let loading = false;
   const limit = 25;
 
+  let quality = null;
+  let codec = null;
+  let updateMpd = null;
+
+  let mpcPath = null;
+
+  let mpcCommand = null;
+
+  let relativePaths = null;
+  let filenameOnly = null;
+
+  async function loadPreferences() {
+    try {
+      const response = await fetch("/preferences");
+      const prefs = await response.json();
+
+      // Apply preferences to form fields
+      quality = prefs.audioQuality;
+      codec = prefs.audioCodec;
+
+      audioDir = prefs.audioDir;
+
+      lyricsDir = prefs.lyricsDir;
+
+      playlistDir = prefs.playlistDir;
+
+      updateMpd = prefs.updateMpd;
+
+      mpcPath = prefs.mpcPath;
+
+      mpcCommand = prefs.mpcCommand;
+
+      relativePaths = prefs.relativePaths;
+      filenameOnly = prefs.fileNames;
+    } catch (e) {
+      console.error("Error loading preferences:", e);
+    }
+  }
+  loadPreferences();
+
   function updateGridMode(source) {
     const header = document.getElementById("library-row-header");
 
@@ -131,6 +179,11 @@ document.addEventListener("DOMContentLoaded", () => {
     bulk.classList.toggle("hidden", currentSource !== "failed");
   }
 
+  function updateFixPlaylistBtn() {
+    const fixPlaylist = document.getElementById("fix-playlist-btn");
+    fixPlaylist.classList.toggle("hidden", currentSource !== "playlist");
+  }
+
   function updateReloadActions() {
     const reload = document.getElementById("reload-btn");
     reload.classList.toggle("hidden", currentSource === "failed");
@@ -155,6 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     updateBulkActions();
     updateReloadActions();
+    updateFixPlaylistBtn();
 
     const cache = libraryCache[source];
 
@@ -187,6 +241,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     updateBulkActions();
     updateReloadActions();
+    updateFixPlaylistBtn();
 
     const cacheKey = `playlist:${currentPlaylist}`;
     const cache = playlistCache[cacheKey];
@@ -272,6 +327,8 @@ document.addEventListener("DOMContentLoaded", () => {
         `${cache.items.length} / ${cache.totalCount} tracks ` +
         `[${cache.totalDuration} listening time]` +
         cacheInfo;
+
+      librarySize.textContent = `${cache.totalSize}`;
 
       renderLibrary(cache.items.slice(-data.items.length)); // Only render new items
     } catch (e) {
@@ -766,6 +823,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!editModal.classList.contains("hidden")) {
       closeEditModal();
+    }
+
+    if (!fixPlaylistModal.classList.contains("hidden")) {
+      closeFixPlaylistModal();
     }
 
     closeModal(); // existing info/failed modal closer
@@ -1298,6 +1359,136 @@ document.addEventListener("DOMContentLoaded", () => {
         showToast("Failed to update metadata");
       }
     });
+
+  // Open fix playlist modal
+  fixPlaylistBtn.addEventListener("click", () => {
+    fixPlaylistModal.classList.remove("hidden", "closing");
+    overlay.classList.remove("hidden", "closing");
+    fixPlaylistUrl.focus();
+  });
+
+  // Close fix playlist modal
+  function closeFixPlaylistModal() {
+    fixPlaylistModal.classList.add("closing");
+    overlay.classList.add("closing");
+
+    fixPlaylistModal.addEventListener(
+      "animationend",
+      () => {
+        fixPlaylistModal.classList.remove("closing");
+        overlay.classList.remove("closing");
+
+        fixPlaylistModal.classList.add("hidden");
+        overlay.classList.add("hidden");
+
+        // Reset form
+        fixPlaylistUrl.value = "";
+      },
+      { once: true },
+    );
+  }
+
+  fixPlaylistClose.addEventListener("click", closeFixPlaylistModal);
+  fixPlaylistCancel.addEventListener("click", closeFixPlaylistModal);
+
+  // Submit fix playlist request
+  fixPlaylistSubmit.addEventListener("click", async () => {
+    const url = fixPlaylistUrl.value.trim();
+
+    if (!url) {
+      showToast("Please enter a playlist URL");
+      return;
+    }
+
+    if (!url.includes("youtube.com") || !url.includes("list=")) {
+      showToast("Please enter a valid YouTube playlist URL");
+      return;
+    }
+
+    const options = {
+      download_missing: document.getElementById("fix-download-missing").checked,
+      create_log: document.getElementById("fix-create-log").checked,
+      quality: quality,
+      codec: codec,
+    };
+
+    try {
+      showToast("Starting playlist fix...");
+
+      const response = await fetch("/fix_playlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: url,
+          options: options,
+          playlist_options: {
+            relative_paths: relativePaths,
+            filenames_only: filenameOnly,
+          },
+          mpd_options: {
+            update_mpd: updateMpd,
+            mpc_path: mpcPath,
+            mpc_command: mpcCommand,
+          },
+          audio_dir: audioDir,
+          lyrics_dir: lyricsDir,
+          playlist_dir: playlistDir,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fix playlist");
+      }
+
+      if (data.download_id) {
+        // Start monitoring the fix process
+        setCurrentDownloadId(data.download_id);
+        startLogStream(getCurrentDownloadId());
+
+        showToast("Playlist fix started. Check logs for progress.");
+      } else if (data.summary) {
+        // Show summary if completed synchronously
+        showFixPlaylistSummary(data);
+      }
+
+      closeFixPlaylistModal();
+    } catch (error) {
+      console.error("Error fixing playlist:", error);
+      showToast(`Failed: ${error.message}`);
+    }
+  });
+
+  // Function to show fix playlist summary
+  function showFixPlaylistSummary(data) {
+    const summary = data.summary;
+
+    let message = `Playlist fix completed!\n`;
+    message += `• Playlist: ${summary.playlist_title}\n`;
+    message += `• Total tracks: ${summary.total_tracks}\n`;
+    message += `• Existing tracks: ${summary.existing_tracks}\n`;
+    message += `• Downloaded: ${summary.downloaded_tracks}\n`;
+    message += `• Updated: ${summary.updated_tracks}\n`;
+    message += `• Removed: ${summary.removed_tracks}\n`;
+
+    if (summary.log_file) {
+      message += `\nLog saved to: ${summary.log_file}`;
+    }
+
+    // Create a custom alert/modal for the summary
+    alert(message);
+
+    // Optionally refresh the current view if it's a playlist
+    if (
+      currentSource === "playlist" &&
+      data.playlist_name === currentPlaylist
+    ) {
+      const cacheKey = `playlist:${currentPlaylist}`;
+      delete playlistCache[cacheKey];
+      loadPlaylistPage(true);
+    }
+  }
 
   function showToast(message) {
     // Create toast element if it doesn't exist
