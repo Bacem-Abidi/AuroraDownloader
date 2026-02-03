@@ -8,6 +8,8 @@ document.addEventListener("DOMContentLoaded", () => {
     logOutput,
     getCurrentDownloadId,
     setCurrentDownloadId,
+    savedLogsModal,
+    closeLogsModal,
   } = window.App;
   const container = document.getElementById("library-body");
   const searchInput = document.getElementById("library-search");
@@ -829,6 +831,10 @@ document.addEventListener("DOMContentLoaded", () => {
       closeFixPlaylistModal();
     }
 
+    if (!savedLogsModal.classList.contains("hidden")) {
+      closeLogsModal();
+    }
+
     closeModal(); // existing info/failed modal closer
   });
 
@@ -1040,7 +1046,7 @@ document.addEventListener("DOMContentLoaded", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          entry: activeFailedEntry,
+          entry: entry,
           audio_dir: audioDir,
           lyrics_dir: lyricsDir,
           playlist_dir: playlistDir,
@@ -1407,7 +1413,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const options = {
       download_missing: document.getElementById("fix-download-missing").checked,
-      create_log: document.getElementById("fix-create-log").checked,
       quality: quality,
       codec: codec,
     };

@@ -1,10 +1,25 @@
 {% block log %}
 <div class="panel">
   <div class="log-header">
-    <h3>Log</h3>
-    <button id="clear-logs" class="btn btn-secondary">
-      <i class="fas fa-trash"></i> Clear Logs
-    </button>
+    <div class="logs-title">
+      <h3>Log</h3>
+      <div class="log-save-toggle">
+        <span>( Save logs</span>
+        <label class="switch">
+          <input type="checkbox" id="save-logs-toggle">
+          <span class="slider"></span>
+        </label>
+        <span> )</span>
+      </div>
+    </div>
+    <div class="log-controls">
+      <button id="view-saved-logs" class="btn btn-secondary">
+        <i class="fas fa-history"></i> View Saved
+      </button>
+      <button id="clear-logs" class="btn btn-secondary">
+        <i class="fas fa-trash"></i> Clear Logs
+      </button>
+    </div>
   </div>
   <div class="log-container" id="log-output">
     <div class="log-entry log-info">

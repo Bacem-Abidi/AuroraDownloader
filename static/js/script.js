@@ -50,6 +50,190 @@ document.addEventListener("DOMContentLoaded", () => {
     valueLabel.textContent = threshold.value + "%";
   });
 
+  const saveLogsToggle = document.getElementById("save-logs-toggle");
+  const viewSavedLogsBtn = document.getElementById("view-saved-logs");
+  const savedLogsModal = document.getElementById("saved-logs-modal");
+  const closeModalBtn = document.getElementById("logs-modal-close");
+  const refreshLogsBtn = document.getElementById("refresh-logs");
+  const clearAllLogsBtn = document.getElementById("clear-all-logs");
+  const logsTableBody = document.getElementById("logs-table-body");
+  const logViewer = document.getElementById("log-viewer");
+  const logViewerTitle = document.getElementById("log-viewer-title");
+  const logViewerContent = document.getElementById("log-viewer-content");
+  const closeLogViewerBtn = document.getElementById("close-log-viewer");
+
+  // Load log saving setting
+  async function loadLogSettings() {
+    try {
+      const response = await fetch("/logs/settings");
+      const data = await response.json();
+      if (data.save_logs !== undefined) {
+        saveLogsToggle.checked = data.save_logs;
+      }
+    } catch (error) {
+      console.error("Failed to load log settings:", error);
+    }
+  }
+
+  // Save log setting
+  async function saveLogSettings(enabled) {
+    try {
+      const response = await fetch("/logs/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ save_logs: enabled }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast(`Log saving ${enabled ? "enabled" : "disabled"}`);
+      }
+    } catch (error) {
+      console.error("Failed to save log settings:", error);
+      showToast("Failed to update log settings", true);
+    }
+  }
+
+  // Load saved logs
+  async function loadSavedLogs() {
+    try {
+      const response = await fetch("/logs/files");
+      const logs = await response.json();
+      renderLogsTable(logs);
+    } catch (error) {
+      console.error("Failed to load saved logs:", error);
+      showToast("Failed to load saved logs", true);
+    }
+  }
+
+  // Render logs table
+  function renderLogsTable(logs) {
+    logsTableBody.innerHTML = "";
+
+    if (logs.length === 0) {
+      logsTableBody.innerHTML = `
+        <tr>
+          <td colspan="4" class="no-logs">No saved logs found</td>
+        </tr>
+      `;
+      return;
+    }
+
+    logs.forEach((log) => {
+      const row = document.createElement("tr");
+      const date = new Date(log.modified * 1000);
+      const formattedDate = date.toLocaleString();
+      const size = formatFileSize(log.size);
+
+      row.innerHTML = `
+        <td>${log.name}</td>
+        <td>${size}</td>
+        <td>${formattedDate}</td>
+        <td>
+          <div class="logs-list-actions">
+            <button class="btn btn-small view-log" data-filename="${log.name}">
+              <i class="fas fa-eye"></i> View
+            </button>
+            <button class="btn btn-small btn-danger delete-log" data-filename="${log.name}">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </div>
+        </td>
+      `;
+
+      logsTableBody.appendChild(row);
+    });
+
+    // Add event listeners to buttons
+    document.querySelectorAll(".view-log").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const filename = e.target.closest(".view-log").dataset.filename;
+        viewLogFile(filename);
+      });
+    });
+
+    document.querySelectorAll(".delete-log").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const filename = e.target.closest(".delete-log").dataset.filename;
+        deleteLogFile(filename);
+      });
+    });
+  }
+
+  // View log file content
+  async function viewLogFile(filename) {
+    try {
+      const response = await fetch(`/logs/file/${filename}`);
+      const data = await response.json();
+
+      if (data.content) {
+        logViewerTitle.textContent = filename;
+        logViewerContent.textContent = data.content;
+        logViewer.style.display = "block";
+        logViewerContent.scrollTop = 0;
+      } else {
+        showToast("Failed to load log file", true);
+      }
+    } catch (error) {
+      console.error("Failed to view log file:", error);
+      showToast("Failed to load log file", true);
+    }
+  }
+
+  async function deleteLogFile(filename) {
+    if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/logs/file/${filename}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        showToast("Log file deleted");
+        loadSavedLogs();
+      } else {
+        showToast("Failed to delete log file", true);
+      }
+    } catch (error) {
+      console.error("Failed to delete log file:", error);
+      showToast("Failed to delete log file", true);
+    }
+  }
+
+  // Clear all logs
+  async function clearAllLogs() {
+    if (!confirm("Are you sure you want to delete ALL saved logs?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/logs/clear", {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        showToast("All logs cleared");
+        loadSavedLogs();
+      } else {
+        showToast("Failed to clear logs", true);
+      }
+    } catch (error) {
+      console.error("Failed to clear logs:", error);
+      showToast("Failed to clear logs", true);
+    }
+  }
+  // Format file size
+  function formatFileSize(bytes) {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  }
+
   function disableManagementTab() {
     if (!managementTabBtn) return;
     managementTabBtn.classList.add("disabled");
@@ -405,6 +589,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const saveLogs = saveLogsToggle.checked;
+
     // Disable button during download
     downloadBtn.disabled = true;
     downloadBtn.innerHTML =
@@ -447,6 +633,7 @@ document.addEventListener("DOMContentLoaded", () => {
           },
           overwrite: overwriteFiles,
           resume: resumeDownload,
+          save_logs: saveLogs,
         }),
       });
 
@@ -717,6 +904,52 @@ document.addEventListener("DOMContentLoaded", () => {
     addLog("[INFO] Logs cleared", "info");
   });
 
+  function openLogsModal(entry) {
+    savedLogsModal.classList.remove("hidden", "closing");
+
+    overlay.classList.remove("hidden", "closing");
+  }
+
+  function closeLogsModal() {
+    savedLogsModal.classList.add("closing");
+    overlay.classList.add("closing");
+
+    savedLogsModal.addEventListener(
+      "animationend",
+      () => {
+        savedLogsModal.classList.remove("closing");
+        overlay.classList.remove("closing");
+
+        savedLogsModal.classList.add("hidden");
+        overlay.classList.add("hidden");
+      },
+      { once: true },
+    );
+  }
+
+  // Event listeners
+  saveLogsToggle.addEventListener("change", (e) => {
+    saveLogSettings(e.target.checked);
+  });
+
+  viewSavedLogsBtn.addEventListener("click", () => {
+    openLogsModal();
+    loadSavedLogs();
+  });
+
+  closeModalBtn.addEventListener("click", closeLogsModal);
+
+  refreshLogsBtn.addEventListener("click", loadSavedLogs);
+
+  clearAllLogsBtn.addEventListener("click", clearAllLogs);
+
+  closeLogViewerBtn.addEventListener("click", () => {
+    logViewer.style.display = "none";
+  });
+
+  // Load settings on page load
+  loadLogSettings();
+
   window.App = {
     addLog,
     startLogStream,
@@ -726,6 +959,8 @@ document.addEventListener("DOMContentLoaded", () => {
     getCurrentDownloadId: () => currentDownloadId,
     setCurrentDownloadId: (id) => (currentDownloadId = id),
     logOutput,
+    savedLogsModal,
+    closeLogsModal,
   };
 });
 

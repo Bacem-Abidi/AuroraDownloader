@@ -31,6 +31,8 @@ from downloader import download_manager
 from flask import Flask, render_template, request, jsonify, Response
 from difflib import SequenceMatcher
 
+from logs import log_manager
+
 
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
 PREFS_FILE = os.path.join(CONFIG_DIR, "preferences.json")
@@ -40,6 +42,7 @@ LIBRARY_CACHE = LibraryCache()
 # progress_tracker = ProgressTracker(CONFIG_DIR)
 app = Flask(__name__)
 app.config["REDIS_URL"] = "redis://localhost"  # For production, use a real Redis server
+app.config["SAVE_LOGS"] = True  # Default to saving logs
 app.register_blueprint(sse, url_prefix="/stream")
 Bootstrap5(app)
 
@@ -284,11 +287,18 @@ def start_download():
     fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
     os.makedirs(fail_dir, exist_ok=True)
 
+    save_logs = data.get("save_logs", app.config["SAVE_LOGS"])
+
     if not url:
         return jsonify({"error": "URL is required"}), 400
 
     # Generate a unique ID for this download
     download_id = str(uuid.uuid4())
+
+    if save_logs:
+        log_queue = log_manager.start_logging(download_id, "download")
+    else:
+        log_queue = None
 
     # Start the download in a background thread
     download_manager.start_download(
@@ -306,6 +316,8 @@ def start_download():
         overwrite=overwrite,
         resume=resume,
         config_dir=CONFIG_DIR,
+        save_logs=save_logs,  # Pass this to download manager
+        log_queue=log_queue,
     )
 
     return jsonify(
@@ -326,12 +338,18 @@ def retry_failed_bulk():
     audio_dir = data.get("audio_dir", "Downloads")
     lyrics_dir = data.get("lyrics_dir", "Downloads/lyrics")
     playlist_dir = data.get("playlist_dir", "Downloads/playlists")
+    save_logs = data.get("save_logs", app.config["SAVE_LOGS"])
 
     audio_dir = expand_path(audio_dir)
     lyrics_dir = expand_path(lyrics_dir)
     playlist_dir = expand_path(playlist_dir)
 
     download_id = f"retry-{int(time.time() * 1000)}"
+
+    if save_logs:
+        log_queue = log_manager.start_logging(download_id, "retry-failed-in-bulk")
+    else:
+        log_queue = None
 
     fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
     if not entries:
@@ -357,6 +375,8 @@ def retry_failed_bulk():
             playlist_dir=playlist_dir,
             fail_dir=fail_dir,
             overwrite=False,
+            save_logs=save_logs,
+            log_queue=log_queue,
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -377,6 +397,7 @@ def retry_failed():
     audio_dir = data.get("audio_dir", "Downloads")
     lyrics_dir = data.get("lyrics_dir", "Downloads/lyrics")
     playlist_dir = data.get("playlist_dir", "Downloads/playlists")
+    save_logs = data.get("save_logs", app.config["SAVE_LOGS"])
 
     audio_dir = expand_path(audio_dir)
     lyrics_dir = expand_path(lyrics_dir)
@@ -389,6 +410,11 @@ def retry_failed():
 
     fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
 
+    if save_logs:
+        log_queue = log_manager.start_logging(download_id, "retrt-failed")
+    else:
+        log_queue = None
+
     try:
         download_manager.retry_failed_entry(
             failed_entry=entry,
@@ -398,6 +424,8 @@ def retry_failed():
             playlist_dir=playlist_dir,
             fail_dir=fail_dir,
             overwrite=False,
+            save_logs=save_logs,
+            log_queue=log_queue,
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -413,6 +441,7 @@ def start_migration():
     playlist_dir = data.get("playlist_dir", "Downloads/playlists")
     match_perc = data.get("match_perc", "85")
     fallback = data.get("fallback", "manual")
+    save_logs = data.get("save_logs", app.config["SAVE_LOGS"])
 
     audio_dir = expand_path(audio_dir)
     lyrics_dir = expand_path(lyrics_dir)
@@ -425,6 +454,11 @@ def start_migration():
 
     migration_id = str(uuid.uuid4())
 
+    if save_logs:
+        log_queue = log_manager.start_logging(migration_id, "migration")
+    else:
+        log_queue = None
+
     download_manager.start_migration(
         migration_id,
         audio_dir,
@@ -433,6 +467,8 @@ def start_migration():
         match_perc,
         fallback,
         migrate_dir,
+        save_logs=save_logs,
+        log_queue=log_queue,
     )
 
     return jsonify({"migration_id": migration_id})
@@ -1026,6 +1062,7 @@ def fix_playlist():
         playlist_dir = data.get("playlist_dir", "Downloads/playlists")
         playlist_options = data.get("playlist_options", {})
         mpd_options = data.get("mpd_options", {})
+        save_logs = data.get("save_logs", app.config["SAVE_LOGS"])
 
         if not url:
             return jsonify({"error": "Missing playlist URL"}), 400
@@ -1048,6 +1085,11 @@ def fix_playlist():
         # Generate a unique ID for this operation
         operation_id = f"fix-{int(time.time() * 1000)}"
 
+        if save_logs:
+            log_queue = log_manager.start_logging(operation_id, "playlist")
+        else:
+            log_queue = None
+
         # Start the fix in background thread
         download_manager.start_fix_playlist(
             url=url,
@@ -1061,6 +1103,8 @@ def fix_playlist():
             log_dir=log_dir,
             history_dir=history_dir,
             fail_dir=fail_dir,
+            save_logs=save_logs,
+            log_queue=log_queue,
         )
 
         return jsonify(
@@ -1071,6 +1115,75 @@ def fix_playlist():
             }
         )
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/logs/settings", methods=["GET", "POST"])
+def logs_settings():
+    """Get or set log saving settings"""
+    try:
+        if request.method == "POST":
+            data = request.json
+            save_logs = data.get("save_logs", False)
+
+            # Update the setting
+            app.config["SAVE_LOGS"] = save_logs
+            log_manager.set_save_logs(save_logs)
+
+            return jsonify({"success": True, "save_logs": save_logs})
+        else:
+            # GET request - return current setting
+            return jsonify({"save_logs": app.config["SAVE_LOGS"]})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/logs/files")
+def list_log_files():
+    """List all log files"""
+    try:
+        log_files = log_manager.get_log_files()
+        return jsonify(log_files)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/logs/file/<filename>")
+def get_log_file(filename):
+    """Get content of a log file"""
+    try:
+        content = log_manager.get_log_content(filename)
+        if content is None:
+            return jsonify({"error": "Log file not found"}), 404
+        return jsonify({"filename": filename, "content": content})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/logs/file/<filename>", methods=["DELETE"])
+def delete_log_file(filename):
+    """Delete a log file"""
+    try:
+        success = log_manager.delete_log_file(filename)
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Failed to delete log file"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/logs/clear", methods=["POST"])
+def clear_all_logs():
+    """Clear all log files"""
+    try:
+        success = log_manager.clear_all_logs()
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Failed to clear logs"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

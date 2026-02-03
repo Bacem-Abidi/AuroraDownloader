@@ -1904,3 +1904,171 @@ input[type="range"] {
 .alert i {
   margin-right: 8px;
 }
+
+/* Log panel header */
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.log-controls {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.log-save-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+/* Switch toggle */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.4s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: 0.4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--highlight);
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+.logs-title {
+  display: flex;
+  gap: 10px;
+}
+
+.logs-title span {
+  color: var(--text-secondary);
+}
+
+/* Modal styles */
+#saved-logs-modal {
+  width: auto;
+}
+
+.logs-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.logs-list-container {
+  min-width: 750px;
+  background-color: #1a202c;
+  border-radius: 6px;
+  border: 1px solid #4a5568;
+  height: 300px;
+  overflow: auto;
+}
+
+#logs-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#logs-table th {
+  text-align: left;
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-bottom: 2px solid #222;
+  font-weight: 600;
+}
+
+#logs-table td {
+  padding: 18px 12px;
+}
+
+#logs-table #logs-table-body tr:hover {
+  background-color: rgba(31, 197, 197, 0.2);
+}
+
+.no-logs {
+  text-align: center;
+  color: #718096;
+  padding: 40px !important;
+}
+
+/* Log viewer */
+.log-viewer-container {
+  margin-top: 20px;
+  background-color: #1a202c;
+  border-radius: 6px;
+  border: 1px solid #4a5568;
+  max-height: 300px;
+}
+
+.log-viewer-header {
+  padding: 15px;
+  border-bottom: 1px solid #4a5568;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.log-viewer-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #e2e8f0;
+}
+
+.log-viewer-content {
+  padding: 15px;
+  margin: 0;
+  background-color: #0f1419;
+  color: #cbd5e0;
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: 0 0 6px 6px;
+}
+
+.logs-list-actions {
+  display: flex;
+  gap: 10px;
+}

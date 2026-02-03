@@ -327,10 +327,6 @@
           <label for="fix-download-missing">Download missing songs</label>
           <input type="checkbox" id="fix-download-missing" class="form-check-input" checked>
         </div>
-        <div class="option-row">
-          <label for="fix-create-log">Create detailed log file</label>
-          <input type="checkbox" id="fix-create-log" class="form-check-input" checked>
-        </div>
       </div>
 
       <div class="alert alert-info" style="margin-top: 10px;">
@@ -348,6 +344,56 @@
       <button id="fix-playlist-submit" class="btn btn-primary">
         <i class="fas fa-wrench"></i> Fix Playlist
       </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Saved Logs Modal -->
+<div id="saved-logs-modal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Saved Logs</h3>
+    <button class="modal-close" id="logs-modal-close" aria-label="Close">
+      <i class="fas fa-times"></i>
+    </button>
+    </div>
+
+    <div class="modal-content">
+    <div class="modal-body">
+      <div class="logs-actions">
+        <button id="refresh-logs" class="btn btn-small">
+          <i class="fas fa-sync"></i> Refresh
+        </button>
+        <button id="clear-all-logs" class="btn btn-small btn-danger">
+          <i class="fas fa-trash"></i> Clear All
+        </button>
+      </div>
+      <div class="logs-list-container">
+        <table id="logs-table">
+          <thead>
+            <tr>
+              <th>Filename</th>
+              <th>Size</th>
+              <th>Modified</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="logs-table-body">
+            <!-- Log files will be loaded here -->
+          </tbody>
+        </table>
+      </div>
+      <div id="log-viewer" class="log-viewer-container" style="display: none;">
+        <div class="log-viewer-header">
+          <h4 id="log-viewer-title"></h4>
+          <button id="close-log-viewer" class="btn btn-small">
+            <i class="fas fa-times"></i> Close
+          </button>
+        </div>
+        <pre id="log-viewer-content" class="log-viewer-content"></pre>
+      </div>
+    </div>
     </div>
   </div>
 </div>

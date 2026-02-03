@@ -17,7 +17,7 @@ from .mpd_manager import MPDManager
 from history import HistoryLogger
 from migration import MigrationLogger
 from fail import FailLogger
-from logs import Logs
+from logs import LogManager
 from ytmusicapi import YTMusic
 from mutagen.id3 import ID3, APIC
 from mutagen import File as MutagenFile
@@ -50,7 +50,23 @@ class DownloadManager:
         self.thumbnail_manager = ThumbnailManager()
         self.mpd_manager = MPDManager()
 
+        self.log_manager = LogManager()
+
         self.migration_choices = {}
+
+    def _forward_logs(self, source_queue, sse_queue, file_queue):
+        """Forward logs to both SSE and file"""
+        while True:
+            try:
+                message = source_queue.get(timeout=0.5)
+                if message == "[END]":
+                    sse_queue.put(message)
+                    file_queue.put("[LOG_END]")
+                    break
+                sse_queue.put(message)
+                file_queue.put(message)
+            except Empty:
+                continue
 
     def start_fix_playlist(
         self,
@@ -65,18 +81,31 @@ class DownloadManager:
         log_dir,
         history_dir,
         fail_dir,
+        save_logs=False,
+        log_queue=None,
     ):
         """Start a playlist fix operation in a separate thread"""
-        log_queue = Queue()
-        self.log_queues[operation_id] = log_queue
+        sse_log_queue = Queue()
+        self.log_queues[operation_id] = sse_log_queue
         self.active_downloads[operation_id] = True
+
+        if save_logs and log_queue:
+            combined_queue = Queue()
+            threading.Thread(
+                target=self._forward_logs,
+                args=(combined_queue, sse_log_queue, log_queue),
+                daemon=True,
+            ).start()
+            thread_log_queue = combined_queue
+        else:
+            thread_log_queue = sse_log_queue
 
         thread = threading.Thread(
             target=self._fix_playlist_thread,
             args=(
                 url,
                 operation_id,
-                log_queue,
+                thread_log_queue,
                 audio_dir,
                 lyrics_dir,
                 playlist_dir,
@@ -86,6 +115,7 @@ class DownloadManager:
                 log_dir,
                 history_dir,
                 fail_dir,
+                save_logs,
             ),
             daemon=True,
         )
@@ -105,10 +135,8 @@ class DownloadManager:
         log_dir,
         history_dir,
         fail_dir,
+        save_logs,
     ):
-        if log_dir:
-            self.logs = Logs(log_dir)
-
         if history_dir:
             self.history_logger = HistoryLogger(history_dir)
 
@@ -252,12 +280,6 @@ class DownloadManager:
                     f"[FIX PLAYLIST] Playlist file updated: {sanitized_title}.m3u"
                 )
 
-            # Save log if requested
-            if options.get("create_log", True):
-                log_file = self.logs.save_fix_log(results, log_dir)
-                results["log_file"] = log_file
-                log_queue.put(f"[FIX PLAYLIST] Log saved to: {log_file}")
-
             # Send summary
             log_queue.put(f"[FIX PLAYLIST SUMMARY]")
             log_queue.put(f"Playlist: {results['playlist_title']}")
@@ -273,9 +295,13 @@ class DownloadManager:
         except Exception as e:
             log_queue.put(f"[ERROR] Playlist fix failed: {str(e)}")
         finally:
-            self.active_downloads.pop(operation_id, None)
             if mpd_options and mpd_options.get("update_mpd"):
                 self.mpd_manager.update_mpd(mpd_options, log_queue)
+
+            if save_logs:
+                self.log_manager.stop_logging(operation_id)
+
+            self.active_downloads.pop(operation_id, None)
             log_queue.put("[END]")
 
     def _select_failed_entries(self, fail_dir, mode, playlist=None, count=0):
@@ -342,22 +368,36 @@ class DownloadManager:
         playlist_dir,
         fail_dir,
         overwrite=False,
+        save_logs=False,
+        log_queue=None,
     ):
-        log_queue = Queue()
-        self.log_queues[download_id] = log_queue
+        sse_log_queue = Queue()
+        self.log_queues[download_id] = sse_log_queue
         self.active_downloads[download_id] = True
+
+        if save_logs and log_queue:
+            combined_queue = Queue()
+            threading.Thread(
+                target=self._forward_logs,
+                args=(combined_queue, sse_log_queue, log_queue),
+                daemon=True,
+            ).start()
+            thread_log_queue = combined_queue
+        else:
+            thread_log_queue = sse_log_queue
 
         thread = threading.Thread(
             target=self._retry_failed_bulk_thread,
             args=(
                 failed_entries,
                 download_id,
-                log_queue,
+                thread_log_queue,
                 audio_dir,
                 lyrics_dir,
                 playlist_dir,
                 fail_dir,
                 overwrite,
+                save_logs,
             ),
             daemon=True,
         )
@@ -373,6 +413,7 @@ class DownloadManager:
         playlist_dir,
         fail_dir,
         overwrite,
+        save_logs,
     ):
         if fail_dir:
             self.fail_logger = FailLogger(fail_dir)
@@ -465,6 +506,9 @@ class DownloadManager:
             log_queue.put(f"[FAILED] Failed retries: {failed}")
 
         finally:
+            if save_logs:
+                self.log_manager.stop_logging(download_id)
+
             self.active_downloads.pop(download_id, None)
             log_queue.put("[END]")
 
@@ -477,25 +521,39 @@ class DownloadManager:
         playlist_dir,
         fail_dir,
         overwrite=False,
+        save_logs=False,
+        log_queue=None,
     ):
         """
         Retry a single failed download entry
         """
-        log_queue = Queue()
-        self.log_queues[download_id] = log_queue
+        sse_log_queue = Queue()
+        self.log_queues[download_id] = sse_log_queue
         self.active_downloads[download_id] = True
+
+        if save_logs and log_queue:
+            combined_queue = Queue()
+            threading.Thread(
+                target=self._forward_logs,
+                args=(combined_queue, sse_log_queue, log_queue),
+                daemon=True,
+            ).start()
+            thread_log_queue = combined_queue
+        else:
+            thread_log_queue = sse_log_queue
 
         thread = threading.Thread(
             target=self._retry_failed_thread,
             args=(
                 failed_entry,
                 download_id,
-                log_queue,
+                thread_log_queue,
                 audio_dir,
                 lyrics_dir,
                 playlist_dir,
                 fail_dir,
                 overwrite,
+                save_logs,
             ),
             daemon=True,
         )
@@ -511,6 +569,7 @@ class DownloadManager:
         playlist_dir,
         fail_dir,
         overwrite,
+        save_logs,
     ):
         if fail_dir:
             self.fail_logger = FailLogger(fail_dir)
@@ -584,6 +643,8 @@ class DownloadManager:
             log_queue.put(f"[ERROR] Retry failed: {str(e)}")
 
         finally:
+            if save_logs:
+                self.log_manager.stop_logging(download_id)
             self.active_downloads.pop(download_id, None)
             log_queue.put("[END]")
 
@@ -689,6 +750,8 @@ class DownloadManager:
         overwrite=False,
         resume=False,
         config_dir=None,
+        save_logs=False,
+        log_queue=None,
     ):
         """Start a download process in a separate thread"""
         if download_id in self.active_downloads:
@@ -708,9 +771,22 @@ class DownloadManager:
             self.fail_logger = FailLogger(fail_dir)
 
         # Create a new queue for this download
-        log_queue = Queue()
-        self.log_queues[download_id] = log_queue
+        sse_log_queue = Queue()
+        self.log_queues[download_id] = sse_log_queue
         self.active_downloads[download_id] = True
+
+        if save_logs and log_queue:
+            # We'll write to both queues
+            combined_queue = Queue()
+            # Start a thread to forward logs to both destinations
+            threading.Thread(
+                target=self._forward_logs,
+                args=(combined_queue, sse_log_queue, log_queue),
+                daemon=True,
+            ).start()
+            thread_log_queue = combined_queue
+        else:
+            thread_log_queue = sse_log_queue
 
         # Start the download in a new thread
         thread = threading.Thread(
@@ -718,7 +794,7 @@ class DownloadManager:
             args=(
                 url,
                 download_id,
-                log_queue,
+                thread_log_queue,
                 quality,
                 codec,
                 audio_dir,
@@ -747,6 +823,7 @@ class DownloadManager:
         mpd_options,
         overwrite,
         resume=False,
+        save_logs=False,
     ):
         """The actual download thread"""
         thumbnail_path = None
@@ -923,6 +1000,9 @@ class DownloadManager:
             # Update MPD if requested
             if mpd_options and mpd_options.get("update_mpd"):
                 self.mpd_manager.update_mpd(mpd_options, log_queue)
+
+            if save_logs:
+                self.log_manager.stop_logging(download_id)
 
             self.active_downloads.pop(download_id, None)
             log_queue.put("[END]")  # Signal end of stream
@@ -1193,12 +1273,25 @@ class DownloadManager:
         match_perc,
         fallback,
         migrate_dir,
+        save_logs=False,
+        log_queue=None,
     ):
         self.migration_logger = MigrationLogger(migrate_dir)
 
-        log_queue = Queue()
-        self.log_queues[migration_id] = log_queue
+        sse_log_queue = Queue()
+        self.log_queues[migration_id] = sse_log_queue
         self.active_downloads[migration_id] = True
+
+        if save_logs and log_queue:
+            combined_queue = Queue()
+            threading.Thread(
+                target=self._forward_logs,
+                args=(combined_queue, sse_log_queue, log_queue),
+                daemon=True,
+            ).start()
+            thread_log_queue = combined_queue
+        else:
+            thread_log_queue = sse_log_queue
 
         thread = threading.Thread(
             target=self._migration_thread,
@@ -1209,7 +1302,8 @@ class DownloadManager:
                 playlist_dir,
                 match_perc,
                 fallback,
-                log_queue,
+                thread_log_queue,
+                save_logs,
             ),
             daemon=True,
         )
@@ -1224,6 +1318,7 @@ class DownloadManager:
         match_perc,
         fallback,
         log_queue,
+        save_logs,
     ):
         log_queue.put(
             f"[MIGRATION] Starting library migration With {match_perc}% accuracy..."
@@ -1467,8 +1562,13 @@ class DownloadManager:
             except Exception as e:
                 log_queue.put(f"[ERROR] {filename}: {str(e)}")
 
-        log_queue.put("[MIGRATION] Completed")
-        log_queue.put("[END]")
+            finally:
+                log_queue.put("[MIGRATION] Completed")
+                if save_logs:
+                    self.log_manager.stop_logging(migration_id)
+
+                self.active_downloads.pop(migration_id, None)
+                log_queue.put("[END]")
 
     def _search_and_clean(
         self, query, title, artist, match_threshold, search_filter, log_queue=None
