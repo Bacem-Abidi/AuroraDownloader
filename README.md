@@ -1,57 +1,63 @@
-# AuroraDownloader - YouTube to MP3 Downloader
+# AuroraDownloader
 
-AuroraDownloader is a powerful, feature-rich YouTube to MP3 downloader with a modern web interface
+**AuroraDownloader** is a lightweight, self‑hosted web application that was made by ME a music lover for music lovers such.
+Aurora lets you download audio from YouTube (videos or playlists) and save it in a variety of high‑quality formats. It was originally
+built for Linux and this particular version only runs reliably on Linux hosts. If you need a
+Windows build, please grab the `.msi` installer from the [releases page](https://github.com/Bacem-Abidi/AuroraDownloader/releases).
+
+> 🔒 **Important:** the command‑line utilities `yt-dlp` **and** `ffmpeg` must be installed and
+> available on your `PATH`. They are not bundled with the application.
 
 ![Preview](assets/auroradownloader.png)
 
----
-
 ## 🎧 Features
 
-- **High-Quality Audio Downloads:** Convert YouTube videos to MP3, AAC, FLAC, Opus, or WAV formats
-- **Smart Metadata Handling:** Automatic title, artist, album, and year extraction
-- **Lyrics Integration:** Download synchronized lyrics in LRC format
-- **Playlist Support:** Download entire YouTube playlists with one click
-- **Cover Art Embedding:** Automatically add album art to your audio files
-- **Download History:** Track all your downloads with timestamps and details
-- **Format Selection:** Choose from various audio qualities (128kbps to 320kbps)
-- **MPD Integration:** Automatically updates MPD library (for use with local music players like rmpc)
-- **Modern Web Interface:** Beautiful and responsive UI for all devices
-- **File Sanitization:** Safe filenames for all languages and characters
+- Convert YouTube videos or playlists to MP3, AAC, FLAC, Opus, WAV and other audio formats
+- Smart metadata extraction (title, artist, album, year, etc.) and embedding
+- Automatic album art handling with support for file upload or URL
+- Download synchronized lyrics (LRC) when available via the YouTube Music API
+- Playlist support with progress tracking and bulk retry of failed items
+- Download history and detailed logs per operation
+- Optional MPD integration to keep a local music server up to date
+- Responsive, mobile‑friendly web interface built with Flask and Bootstrap
+- Filename sanitisation suitable for all languages and file systems
+
+## 💻 Installation (required for this version)
+
+1. **Install prerequisites**
+   - Python 3.8 or newer
+   - `yt-dlp` (install via your package manager or `pip install yt-dlp`)
+   - `ffmpeg` (system package; ensure `ffmpeg` is on `PATH`)
+
+2. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/Bacem-Abidi/AuroraDownloader.git
+   cd AuroraDownloader
+   ```
+
+3. **Install Python dependencies**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run the application**
+
+   ```bash
+   flask --app app run
+   ```
+
+5. Open your browser and navigate to `http://127.0.0.1:5000/` to use the web interface.
+
+## ⚠️ Notes
+
+- This repository version works best for **Linux**. Windows users should download a pre‑built
+  installer from the [GitHub releases](https://github.com/Bacem-Abidi/AuroraDownloader/releases).
+- Lyrics are retrieved via `ytmusicapi`, an unofficial YouTube Music API. If a track has no
+  lyrics on YouTube Music, none will be downloaded.
+- Make sure `yt-dlp` and `ffmpeg` are up‑to‑date to avoid compatibility issues.
 
 ---
 
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Python 3.8+
-- FFmpeg
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/Bacem-Abidi/AuroraDownloader.git
-
-# Navigate to project directory
-cd AuroraDownloader
-
-# Download Dependencies
-pip install -r requirements.txt
-
-# Run the app
-flask --app app run
-```
-
-Access the web interface at: http://127.0.0.1:5000/
-
----
-
-## ⚠️ Note on Lyrics
-
-AuroraDownloader uses ytmusicapi (_an unofficial YouTube Music API_) to fetch synchronized lyrics.  
-➡️ Please check on YouTube Music whether the song you’re downloading actually has lyrics available.  
-If no lyrics exist for that track, none will be downloaded.
-
----
+Happy downloading! 🎶
