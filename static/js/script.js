@@ -563,6 +563,7 @@ document.addEventListener("DOMContentLoaded", () => {
     logOutput.appendChild(logEntry);
     if(logOutput.children.length > MAX_LOG_ENTRIES) {
         logOutput.innerHTML = "";
+        logOutput.appendChild(logEntry);
     }
     logOutput.scrollTop = logOutput.scrollHeight;
   }
