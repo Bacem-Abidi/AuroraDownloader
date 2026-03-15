@@ -1190,9 +1190,9 @@ class DownloadManager:
             [
                 "--embed-metadata",
                 "--add-metadata",
-                "--parse-metadata",
+                "--metadata",
                 f"title:{title}",
-                "--parse-metadata",
+                "--metadata",
                 f"uploader:{artist}",
                 # '--output', f'{audio_dir}/%(title)s.%(ext)s',
                 "-o",

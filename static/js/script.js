@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const MAX_LOG_ENTRIES = 250;
   const downloadBtn = document.getElementById("download-btn");
   const youtubeUrl = document.getElementById("youtube-url");
   const logOutput = document.getElementById("log-output");
@@ -560,6 +561,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     logOutput.appendChild(logEntry);
+    if(logOutput.children.length > MAX_LOG_ENTRIES) {
+        logOutput.innerHTML = "";
+    }
     logOutput.scrollTop = logOutput.scrollHeight;
   }
 
