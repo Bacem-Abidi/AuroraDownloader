@@ -10,13 +10,14 @@ styles %} {{ super() }}
   href="{{ url_for('static', filename='css/style.css') }}"
 />
 <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-
+<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='assets/aurora.ico') }}">
 {% endblock %} {% block content %}
 
 <div class="container">
   <header>
     <div class="logo">
-      <i class="fas fa-music"></i>
+      <!-- <i class="fas fa-music"></i> -->
+      <img src="{{ url_for('static', filename='assets/aurora.ico') }}" alt="icon-alt" style="width: 64px;margin-top: 7px;">
       <div>
         <h1>AuroraDownloader</h1>
         <p class="subtitle">Youtube to mp3 donwloader</p>
