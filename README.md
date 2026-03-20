@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="static/assets/aurora.ico" alt="Aurora" width="100">
+</div>
+
 # AuroraDownloader
 
 **AuroraDownloader** is a lightweight, self‑hosted web application that was made by ME a music lover for music lovers such.
