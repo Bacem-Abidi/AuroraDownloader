@@ -2072,3 +2072,23 @@ input:checked + .slider:before {
   display: flex;
   gap: 10px;
 }
+
+/* Footer Styles */
+.app-footer {
+  padding: 2rem 0 1rem;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.footer-bottom {
+  text-align: center;
+  padding-top: 1.5rem;
+  margin-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.footer-bottom p {
+  margin: 0;
+}
