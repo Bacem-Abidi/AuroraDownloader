@@ -12,6 +12,9 @@
     <button class="tab-btn" data-tab="management-tab" id="management-tab-btn">
       <i class="fas fa-sliders-h"></i> Manager
     </button>
+    <button class="tab-btn" data-tab="logs-tab" id="logs-tab-btn">
+      <i class="fas fa-list-alt"></i> Logs
+    </button>
   </div>
 
   <!-- Tab contents -->
@@ -33,6 +36,12 @@
     {% block management %}
     <div id="management-tab" class="tab-pane">
       {% include "management_tab.html" %}
+    </div>
+    {% endblock %}
+
+    {% block logs %}
+    <div id="logs-tab" class="tab-pane">
+      {% include "logs_tab.html" %}
     </div>
     {% endblock %}
 

@@ -52,16 +52,233 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const saveLogsToggle = document.getElementById("save-logs-toggle");
-  const viewSavedLogsBtn = document.getElementById("view-saved-logs");
-  const savedLogsModal = document.getElementById("saved-logs-modal");
-  const closeModalBtn = document.getElementById("logs-modal-close");
-  const refreshLogsBtn = document.getElementById("refresh-logs");
-  const clearAllLogsBtn = document.getElementById("clear-all-logs");
-  const logsTableBody = document.getElementById("logs-table-body");
-  const logViewer = document.getElementById("log-viewer");
-  const logViewerTitle = document.getElementById("log-viewer-title");
+
+  const savedLogsList = document.getElementById("saved-logs-list");
   const logViewerContent = document.getElementById("log-viewer-content");
-  const closeLogViewerBtn = document.getElementById("close-log-viewer");
+  const logViewTitle = document.getElementById("log-view-title");
+  const logViewMeta = document.getElementById("log-view-meta");
+  const refreshLogsSidebar = document.getElementById("refresh-logs-sidebar");
+  const clearAllLogsBtn = document.getElementById("clear-all-logs");
+  const deleteCurrentLogBtn = document.getElementById("delete-current-log");
+
+  // Keep track of the currently selected log filename
+  let currentSelectedLog = null;
+
+  // Search functionality
+  const logSearchInput = document.getElementById("log-search");
+  const clearSearchBtn = document.getElementById("clear-search");
+  const searchCountSpan = document.getElementById("search-count");
+  let currentLogContent = "";
+  let searchDebounceTimer = null;
+  let currentSearchTask = null;
+  let matchIndices = [];
+  let currentMatchIndex = -1;
+  function getLogType(line) {
+    // Use the same tagMap as in addLog
+    const tagMap = [
+      { tag: "[DIRECTORY]", type: "system" },
+      { tag: "[PLAYLIST]", type: "playlist" },
+      { tag: "[METADATA]", type: "metadata" },
+      { tag: "[THUMBNAIL]", type: "thumbnail" },
+      { tag: "[LYRICS]", type: "lyrics" },
+      { tag: "[QUALITY]", type: "quality" },
+      { tag: "[SETTINGS]", type: "settings" },
+      { tag: "[COMMAND]", type: "command" },
+      { tag: "[debug]", type: "debug" },
+      { tag: "[download]", type: "download" },
+      { tag: "[ExtractAudio]", type: "convert" },
+      { tag: "[Convert]", type: "convert" },
+      { tag: "[SUCCESS]", type: "success" },
+      { tag: "[FIX PLAYLIST COMPLETE]", type: "success" },
+      { tag: "[FIX PLAYLIST SUMMARY]", type: "lyrics" },
+      { tag: "[WARNING]", type: "warning" },
+      { tag: "[ERROR]", type: "error" },
+      { tag: "[MPD]", type: "mpd" },
+      { tag: "[CLEANUP]", type: "system" },
+      { tag: "[PROGRESS]", type: "system" },
+    ];
+
+    for (const { tag, type } of tagMap) {
+      if (line.includes(tag)) return type;
+    }
+    if (line.includes("yt-dlp")) return "command";
+    if (line.includes("ffmpeg")) return "convert";
+    return "info";
+  }
+
+  // Log navigation Elements
+  const prevMatchBtn = document.getElementById("prev-match");
+  const nextMatchBtn = document.getElementById("next-match");
+
+  if (prevMatchBtn) {
+    prevMatchBtn.addEventListener("click", goToPrevMatch);
+  }
+  if (nextMatchBtn) {
+    nextMatchBtn.addEventListener("click", goToNextMatch);
+  }
+
+  // Log navigation keyboard Shortcuts
+  document.addEventListener("keydown", (e) => {
+    // Check if logs tab is active
+    const logsTab = document.getElementById("logs-tab");
+    if (!logsTab || !logsTab.classList.contains("active")) return;
+
+    // Avoid interfering with typing in the search input
+    if (document.activeElement === logSearchInput) return;
+
+    if (e.key === "n" && !e.shiftKey) {
+      e.preventDefault();
+      goToNextMatch();
+    } else if (e.key === "N" || (e.key === "n" && e.shiftKey)) {
+      e.preventDefault();
+      goToPrevMatch();
+    }
+  });
+
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function scrollElementIntoView(element, container) {
+    if (!element || !container) return;
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    const offsetTop = elementRect.top - containerRect.top + container.scrollTop;
+    // Center the element vertically
+    const targetScrollTop =
+      offsetTop - containerRect.height / 2 + elementRect.height / 2;
+    container.scrollTo({
+      top: targetScrollTop,
+      behavior: "smooth",
+    });
+  }
+
+  // Search navigations:
+  function goToNextMatch() {
+    if (!matchIndices.length) return;
+    const currentLine = document.querySelector(".log-line.current-match");
+    if (currentLine) currentLine.classList.remove("current-match");
+
+    currentMatchIndex = (currentMatchIndex + 1) % matchIndices.length;
+    const nextLine = document.querySelector(
+      `.log-line[data-line="${matchIndices[currentMatchIndex]}"]`,
+    );
+    if (nextLine) {
+      nextLine.classList.add("current-match");
+      scrollElementIntoView(nextLine, logViewerContent);
+    }
+  }
+
+  function goToPrevMatch() {
+    if (!matchIndices.length) return;
+    const currentLine = document.querySelector(".log-line.current-match");
+    if (currentLine) currentLine.classList.remove("current-match");
+
+    currentMatchIndex =
+      (currentMatchIndex - 1 + matchIndices.length) % matchIndices.length;
+    const prevLine = document.querySelector(
+      `.log-line[data-line="${matchIndices[currentMatchIndex]}"]`,
+    );
+    if (prevLine) {
+      prevLine.classList.add("current-match");
+      scrollElementIntoView(prevLine, logViewerContent);
+    }
+  }
+
+  // Filter logs content
+  function filterLogContent() {
+    const searchTerm = logSearchInput.value.trim();
+    const container = logViewerContent;
+    if (!container) return;
+
+    // Cancel any ongoing search
+    if (currentSearchTask) {
+      currentSearchTask.cancel = true;
+      currentSearchTask = null;
+    }
+
+    const lines = currentLogContent.split("\n");
+    if (lines.length === 0) return;
+
+    // Show searching indicator
+    container.innerHTML =
+      '<div class="searching-indicator">Searching... <i class="fas fa-spinner fa-spin"></i></div>';
+    if (searchCountSpan) searchCountSpan.textContent = "";
+
+    const totalLines = lines.length;
+    const lowerTerm = searchTerm.toLowerCase();
+    const CHUNK_SIZE = 5000;
+    let processedLines = 0;
+    let matchedLines = 0;
+    const resultChunks = [];
+    const newMatchIndices = [];
+
+    const task = { cancel: false };
+    currentSearchTask = task;
+
+    function processChunk(startIdx) {
+      if (task.cancel) return;
+
+      const endIdx = Math.min(startIdx + CHUNK_SIZE, totalLines);
+      const chunk = lines.slice(startIdx, endIdx);
+      let chunkHtml = "";
+
+      for (let i = 0; i < chunk.length; i++) {
+        const line = chunk[i];
+        const lineNumber = startIdx + i;
+        const logType = getLogType(line);
+        let escaped = escapeHtml(line);
+
+        const matches = searchTerm && line.toLowerCase().includes(lowerTerm);
+        if (matches) {
+          matchedLines++;
+          newMatchIndices.push(lineNumber);
+          const regex = new RegExp(`(${escapeRegExp(searchTerm)})`, "gi");
+          escaped = escaped.replace(regex, "<mark>$1</mark>");
+        }
+
+        chunkHtml += `<div class="log-line log-${logType}" data-line="${lineNumber}">${escaped}</div>`;
+      }
+
+      resultChunks.push(chunkHtml);
+      processedLines += chunk.length;
+
+      if (endIdx < totalLines) {
+        setTimeout(() => processChunk(endIdx), 0);
+      } else {
+        if (!task.cancel) {
+          const finalHtml = resultChunks.join("");
+          if (searchTerm && matchedLines === 0) {
+            container.innerHTML = `<div class="no-matches">No matches found for "${escapeHtml(searchTerm)}"</div>`;
+            matchIndices = [];
+            currentMatchIndex = -1;
+          } else {
+            container.innerHTML = finalHtml;
+            matchIndices = newMatchIndices;
+            if (searchTerm && matchIndices.length > 0) {
+              currentMatchIndex = 0;
+              const firstMatchLine = document.querySelector(
+                `.log-line[data-line="${matchIndices[0]}"]`,
+              );
+              if (firstMatchLine) {
+                scrollElementIntoView(firstMatchLine, logViewerContent);
+                firstMatchLine.classList.add("current-match");
+              }
+            } else {
+              currentMatchIndex = -1;
+            }
+          }
+          if (searchCountSpan)
+            searchCountSpan.textContent = searchTerm
+              ? `(${matchedLines} matches)`
+              : "";
+          currentSearchTask = null;
+        }
+      }
+    }
+
+    processChunk(0);
+  }
 
   // Load log saving setting
   async function loadLogSettings() {
@@ -94,69 +311,101 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Load saved logs
-  async function loadSavedLogs() {
+  // Load saved logs into the sidebar list
+  async function loadSavedLogsSidebar() {
     try {
       const response = await fetch("/logs/files");
       const logs = await response.json();
-      renderLogsTable(logs);
+
+      if (!savedLogsList) return;
+
+      if (logs.length === 0) {
+        savedLogsList.innerHTML =
+          '<li class="sidebar-placeholder">No saved logs</li>';
+        // Clear viewer and title
+        logViewerContent.textContent = "";
+        logViewTitle.textContent = "No logs available";
+        logViewMeta.textContent = "";
+        currentSelectedLog = null;
+        return;
+      }
+
+      // Sort by modified date (newest first)
+      logs.sort((a, b) => b.modified - a.modified);
+
+      // Build the list
+      savedLogsList.innerHTML = logs
+        .map(
+          (log) => `
+      <li data-filename="${escapeHtml(log.name)}" data-modified="${log.modified}">
+        <span class="log-filename">${escapeHtml(log.name)}</span>
+        <span class="log-meta">${new Date(log.modified * 1000).toLocaleString()}</span>
+      </li>
+    `,
+        )
+        .join("");
+
+      // Attach click handlers
+      document.querySelectorAll("#saved-logs-list li").forEach((li) => {
+        li.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const filename = li.dataset.filename;
+          if (!filename) return;
+
+          // Highlight selected item
+          document
+            .querySelectorAll("#saved-logs-list li")
+            .forEach((item) => item.classList.remove("active"));
+          li.classList.add("active");
+
+          // Load and display the log content
+          await viewLogContent(filename);
+        });
+      });
+
+      // If there's a currently selected log, try to keep it selected
+      if (currentSelectedLog) {
+        const existingLi = document.querySelector(
+          `#saved-logs-list li[data-filename="${currentSelectedLog}"]`,
+        );
+        if (existingLi) {
+          existingLi.classList.add("active");
+          await viewLogContent(currentSelectedLog);
+        } else {
+          // The previously selected log no longer exists, select the latest
+          const firstLi = savedLogsList.querySelector("li");
+          if (firstLi && firstLi.dataset.filename) {
+            firstLi.classList.add("active");
+            await viewLogContent(firstLi.dataset.filename);
+          } else {
+            // No logs left
+            logViewerContent.textContent = "";
+            logViewTitle.textContent = "No logs available";
+            logViewMeta.textContent = "";
+            currentSelectedLog = null;
+          }
+        }
+      } else if (logs.length > 0) {
+        // No current selection, select the latest (first in list)
+        const firstLi = savedLogsList.querySelector("li");
+        if (firstLi && firstLi.dataset.filename) {
+          firstLi.classList.add("active");
+          await viewLogContent(firstLi.dataset.filename);
+        }
+      }
+      showToast("Loaded all saved logs successfully");
     } catch (error) {
       console.error("Failed to load saved logs:", error);
       showToast("Failed to load saved logs", true);
     }
   }
 
-  // Render logs table
-  function renderLogsTable(logs) {
-    logsTableBody.innerHTML = "";
-
-    if (logs.length === 0) {
-      logsTableBody.innerHTML = `
-        <tr>
-          <td colspan="4" class="no-logs">No saved logs found</td>
-        </tr>
-      `;
-      return;
-    }
-
-    logs.forEach((log) => {
-      const row = document.createElement("tr");
-      const date = new Date(log.modified * 1000);
-      const formattedDate = date.toLocaleString();
-      const size = formatFileSize(log.size);
-
-      row.innerHTML = `
-        <td>${log.name}</td>
-        <td>${size}</td>
-        <td>${formattedDate}</td>
-        <td>
-          <div class="logs-list-actions">
-            <button class="btn btn-small view-log" data-filename="${log.name}">
-              <i class="fas fa-eye"></i> View
-            </button>
-            <button class="btn btn-small btn-danger delete-log" data-filename="${log.name}">
-              <i class="fas fa-trash"></i> Delete
-            </button>
-          </div>
-        </td>
-      `;
-
-      logsTableBody.appendChild(row);
-    });
-
-    // Add event listeners to buttons
-    document.querySelectorAll(".view-log").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        const filename = e.target.closest(".view-log").dataset.filename;
-        viewLogFile(filename);
-      });
-    });
-
-    document.querySelectorAll(".delete-log").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        const filename = e.target.closest(".delete-log").dataset.filename;
-        deleteLogFile(filename);
-      });
+  function escapeHtml(str) {
+    return str.replace(/[&<>]/g, function (m) {
+      if (m === "&") return "&amp;";
+      if (m === "<") return "&lt;";
+      if (m === ">") return "&gt;";
+      return m;
     });
   }
 
@@ -180,6 +429,31 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  async function viewLogContent(filename) {
+    try {
+      const response = await fetch(`/logs/file/${filename}`);
+      const data = await response.json();
+
+      if (data.content) {
+        currentLogContent = data.content; // store for search
+        logViewerContent.textContent = data.content; // initial plain display
+        logViewTitle.textContent = filename;
+        logViewMeta.textContent = `${formatFileSize(data.size)} · ${new Date(data.modified * 1000).toLocaleString()}`;
+        currentSelectedLog = filename;
+        logViewerContent.scrollTop = 0;
+
+        // Reset search field and filter (will show full content)
+        if (logSearchInput) logSearchInput.value = "";
+        filterLogContent(); // re‑apply filter (clears any previous highlight)
+      } else {
+        showToast("Failed to load log file", true);
+      }
+    } catch (error) {
+      console.error("Failed to view log file:", error);
+      showToast("Failed to load log file", true);
+    }
+  }
+
   async function deleteLogFile(filename) {
     if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
       return;
@@ -193,7 +467,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (data.success) {
         showToast("Log file deleted");
-        loadSavedLogs();
+        // Refresh the sidebar list
+        await loadSavedLogsSidebar();
+        // If the deleted file was the one displayed, clear viewer (loadSavedLogsSidebar will select a new one)
+        if (currentSelectedLog === filename) {
+          // loadSavedLogsSidebar will auto‑select the latest, so no extra action needed
+        }
       } else {
         showToast("Failed to delete log file", true);
       }
@@ -217,7 +496,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (data.success) {
         showToast("All logs cleared");
-        loadSavedLogs();
+        await loadSavedLogsSidebar(); // will show empty state
+        logViewerContent.textContent = "";
+        logViewTitle.textContent = "No logs available";
+        logViewMeta.textContent = "";
+        currentSelectedLog = null;
       } else {
         showToast("Failed to clear logs", true);
       }
@@ -561,9 +844,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     logOutput.appendChild(logEntry);
-    if(logOutput.children.length > MAX_LOG_ENTRIES) {
-        logOutput.innerHTML = "";
-        logOutput.appendChild(logEntry);
+    if (logOutput.children.length > MAX_LOG_ENTRIES) {
+      logOutput.innerHTML = "";
+      logOutput.appendChild(logEntry);
     }
     logOutput.scrollTop = logOutput.scrollHeight;
   }
@@ -909,27 +1192,41 @@ document.addEventListener("DOMContentLoaded", () => {
     addLog("[INFO] Logs cleared", "info");
   });
 
-  function openLogsModal(entry) {
-    savedLogsModal.classList.remove("hidden", "closing");
-
-    overlay.classList.remove("hidden", "closing");
+  // Attach search event with debouncing
+  if (clearSearchBtn) {
+    clearSearchBtn.addEventListener("click", () => {
+      logSearchInput.value = "";
+      filterLogContent();
+    });
   }
 
-  function closeLogsModal() {
-    savedLogsModal.classList.add("closing");
-    overlay.classList.add("closing");
+  if (logSearchInput) {
+    logSearchInput.addEventListener("input", () => {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        filterLogContent();
+      }, 300);
+    });
+  }
+  // Refresh sidebar
+  if (refreshLogsSidebar) {
+    refreshLogsSidebar.addEventListener("click", loadSavedLogsSidebar);
+  }
 
-    savedLogsModal.addEventListener(
-      "animationend",
-      () => {
-        savedLogsModal.classList.remove("closing");
-        overlay.classList.remove("closing");
+  // Clear all logs
+  if (clearAllLogsBtn) {
+    clearAllLogsBtn.addEventListener("click", clearAllLogs);
+  }
 
-        savedLogsModal.classList.add("hidden");
-        overlay.classList.add("hidden");
-      },
-      { once: true },
-    );
+  // Delete current log
+  if (deleteCurrentLogBtn) {
+    deleteCurrentLogBtn.addEventListener("click", async () => {
+      if (currentSelectedLog) {
+        await deleteLogFile(currentSelectedLog);
+      } else {
+        showToast("No log selected", true);
+      }
+    });
   }
 
   // Event listeners
@@ -937,20 +1234,47 @@ document.addEventListener("DOMContentLoaded", () => {
     saveLogSettings(e.target.checked);
   });
 
-  viewSavedLogsBtn.addEventListener("click", () => {
-    openLogsModal();
-    loadSavedLogs();
-  });
+  const logsTabBtn = document.getElementById("logs-tab-btn");
+  if (logsTabBtn) {
+    logsTabBtn.addEventListener("click", () => {
+      // When logs tab is clicked, load the saved logs
+      loadSavedLogsSidebar();
+    });
+  }
 
-  closeModalBtn.addEventListener("click", closeLogsModal);
-
-  refreshLogsBtn.addEventListener("click", loadSavedLogs);
+  // "View Saved" button: switch to logs tab and load saved logs
+  const viewSavedLogsBtn = document.getElementById("view-saved-logs");
+  if (viewSavedLogsBtn) {
+    viewSavedLogsBtn.addEventListener("click", () => {
+      if (logsTabBtn) {
+        logsTabBtn.click();
+        // Allow time for the tab to become visible, then scroll
+        setTimeout(() => {
+          const logsTabPane = document.getElementById("logs-tab");
+          if (logsTabPane) {
+            window.scrollTo({
+              top: 0,
+              behavior: "smooth",
+            });
+          }
+        }, 100);
+      } else {
+        // Fallback: find the logs tab button manually
+        const logsTab = document.querySelector('.tab-btn[data-tab="logs-tab"]');
+        if (logsTab) logsTab.click();
+        setTimeout(() => {
+          const logsTabPane = document.getElementById("logs-tab");
+          if (logsTabPane)
+            window.scrollTo({
+              top: 0,
+              behavior: "smooth",
+            });
+        }, 100);
+      }
+    });
+  }
 
   clearAllLogsBtn.addEventListener("click", clearAllLogs);
-
-  closeLogViewerBtn.addEventListener("click", () => {
-    logViewer.style.display = "none";
-  });
 
   // Load settings on page load
   loadLogSettings();
@@ -964,8 +1288,6 @@ document.addEventListener("DOMContentLoaded", () => {
     getCurrentDownloadId: () => currentDownloadId,
     setCurrentDownloadId: (id) => (currentDownloadId = id),
     logOutput,
-    savedLogsModal,
-    closeLogsModal,
   };
 });
 

@@ -80,6 +80,7 @@ input:focus {
   /* grid-template-rows: 1fr 350px; */
   gap: 30px;
   margin-top: 20px;
+  max-width: inherit;
 }
 
 .panel {
@@ -89,6 +90,7 @@ input:focus {
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  max-width: inherit;
 }
 .control-group {
   text-align: center;
@@ -924,7 +926,8 @@ details summary {
 }
 
 .sidebar-section {
-  margin-bottom: 20px;
+  /* margin-bottom: 20px; */
+  max-height: inherit;
 }
 
 .sidebar-section h4 {
@@ -2063,7 +2066,6 @@ input:checked + .slider:before {
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-x: auto;
-  max-height: 200px;
   overflow-y: auto;
   border-radius: 0 0 6px 6px;
 }
@@ -2091,4 +2093,192 @@ input:checked + .slider:before {
 
 .footer-bottom p {
   margin: 0;
+}
+
+.logs-layout {
+  display: flex;
+}
+
+.logs-layout .library-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  min-height: 200px;
+  max-height: 325px;
+}
+
+.logs-layout .library-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#log-content-area {
+  flex: 1;
+  overflow-y: auto;
+  color: #ccc;
+  border-radius: 0 0 10px 10px;
+  padding: 0 !important;
+}
+
+.log-viewer-content {
+  margin: 0;
+  padding: 10px;
+  font-family: monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+#saved-logs-list li {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+
+#saved-logs-list li:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+#saved-logs-list li.active {
+  background: #2c3e50;
+  color: white;
+}
+
+#saved-logs-list .log-filename {
+  font-weight: 500;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#saved-logs-list .log-meta {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.log-controls-group {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.log-save-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.search-count {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-left: 5px;
+}
+.log-viewer-content {
+  margin: 0;
+  padding: 10px;
+  font-family: monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #ccc;
+  overflow: auto;
+  height: 90%;
+  /* padding-bottom: 60px; */
+}
+.log-line mark {
+  background-color: #ff0;
+  color: #000;
+  padding: 0;
+}
+.no-matches {
+  color: #f66;
+  text-align: center;
+  padding: 20px;
+}
+
+.searching-indicator {
+  text-align: center;
+  padding: 20px;
+  color: #aaa;
+}
+
+.log-line.current-match {
+  background-color: #2c3e50;
+  outline: 1px solid #638cae;
+}
+
+/* Base line style */
+.log-line {
+  font-family: monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Log type colors */
+.log-line.log-info {
+  color: #cccccc;
+}
+.log-line.log-system {
+  color: #88aaff;
+}
+.log-line.log-playlist {
+  color: #88aaff;
+}
+.log-line.log-metadata {
+  color: #aaffaa;
+}
+.log-line.log-thumbnail {
+  color: #aaffaa;
+}
+.log-line.log-lyrics {
+  color: #ffaa88;
+}
+.log-line.log-quality {
+  color: #ffaa88;
+}
+.log-line.log-settings {
+  color: #ffaa88;
+}
+.log-line.log-command {
+  color: #6c8eff;
+}
+.log-line.log-debug {
+  color: #888888;
+}
+.log-line.log-download {
+  color: #6c8eff;
+}
+.log-line.log-convert {
+  color: #c56cff;
+}
+.log-line.log-success {
+  color: #44ff44;
+}
+.log-line.log-warning {
+  color: #ffcc44;
+}
+.log-line.log-error {
+  color: #ff6666;
+}
+.log-line.log-mpd {
+  color: #ff88aa;
+}
+.log-line.log-cleanup {
+  color: #88ffaa;
+}
+.log-line.log-progress {
+  color: #ffaa88;
 }

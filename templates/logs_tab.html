@@ -1,0 +1,81 @@
+{% block logs %}
+<div class="library-layout logs-layout">
+  <!-- Left sidebar: list of saved logs -->
+  <aside class="library-sidebar">
+    <div class="sidebar-section">
+      <h4 style="align-items: center; margin-right: 5px">
+        Saved Logs
+        <button
+          class="btn btn-secondary"
+          id="refresh-logs-sidebar"
+          title="Refresh"
+        >
+          <i class="fas fa-sync"></i>
+        </button>
+      </h4>
+      <ul class="sidebar-list" id="saved-logs-list" style="max-height: inherit">
+        <li class="sidebar-placeholder">Loading…</li>
+      </ul>
+    </div>
+    <button
+      id="clear-all-logs"
+      class="btn btn-danger"
+      style="margin-top: 65px; margin-left: 10px"
+    >
+      <i class="fas fa-trash"></i> Clear All
+    </button>
+  </aside>
+
+  <!-- Right main area: log viewer + controls -->
+  <section class="library-main" style="min-height: 460px">
+    <div class="library-header">
+      <div>
+        <h3 id="log-view-title">Select a log</h3>
+        <small id="log-view-meta"></small>
+      </div>
+      <div class="log-controls-group">
+        <button id="delete-current-log" class="btn btn-secondary">
+          <i class="fas fa-trash"></i> Delete
+        </button>
+      </div>
+    </div>
+
+    <div
+      class="history-container library-table"
+      id="log-content-area"
+      style="
+        height: 100%;
+        padding: 0px;
+        border-radius: 0px 0px 10px 0px !important;
+        overflow: hidden;
+      "
+    >
+      <!-- Search input -->
+      <div class="search-wrapper">
+        <input
+          type="text"
+          id="log-search"
+          placeholder="Search in log..."
+          class="form-control"
+        />
+        <span id="search-count" class="search-count"></span>
+        <button id="clear-search" class="btn btn-small" title="Clear search">
+          ✖
+        </button>
+        <button
+          id="prev-match"
+          class="btn btn-small"
+          title="Previous match (Shift+N)"
+        >
+          <i class="fas fa-arrow-up"></i>
+        </button>
+        <button id="next-match" class="btn btn-small" title="Next match (n)">
+          <i class="fas fa-arrow-down"></i>
+        </button>
+      </div>
+
+      <div id="log-viewer-content" class="log-viewer-content"></div>
+    </div>
+  </section>
+</div>
+{% endblock %}

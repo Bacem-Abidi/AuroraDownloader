@@ -8,8 +8,6 @@ document.addEventListener("DOMContentLoaded", () => {
     logOutput,
     getCurrentDownloadId,
     setCurrentDownloadId,
-    savedLogsModal,
-    closeLogsModal,
   } = window.App;
   const container = document.getElementById("library-body");
   const searchInput = document.getElementById("library-search");
@@ -829,10 +827,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!fixPlaylistModal.classList.contains("hidden")) {
       closeFixPlaylistModal();
-    }
-
-    if (!savedLogsModal.classList.contains("hidden")) {
-      closeLogsModal();
     }
 
     closeModal(); // existing info/failed modal closer

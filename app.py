@@ -1152,12 +1152,24 @@ def list_log_files():
 
 @app.route("/logs/file/<filename>")
 def get_log_file(filename):
-    """Get content of a log file"""
+    """Get content and stats of a log file"""
     try:
-        content = log_manager.get_log_content(filename)
-        if content is None:
+        file_path = log_manager.logs_dir / filename
+        if not file_path.exists():
             return jsonify({"error": "Log file not found"}), 404
-        return jsonify({"filename": filename, "content": content})
+
+        stats = file_path.stat()
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        return jsonify(
+            {
+                "filename": filename,
+                "content": content,
+                "size": stats.st_size,
+                "modified": stats.st_mtime,
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
