@@ -7,6 +7,7 @@ import requests
 import tempfile
 import threading
 import subprocess
+import shutil
 from pathlib import Path
 from queue import Queue, Empty
 from .metadata import MetadataManager
@@ -28,6 +29,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
 
+AUDIO_EXTENSIONS = (".mp3", ".flac", ".wav", ".ogg", ".m4a")
 
 class DownloadManager:
     def __init__(self, output_dir="Downloads"):
@@ -1798,6 +1800,211 @@ class DownloadManager:
 
         if updated == 0:
             log_queue.put("[INFO] No playlist references found")
+
+
+
+    def start_move_copy(self, operation_id, source_audio, source_lyrics, source_playlists,
+                        dest_audio, dest_lyrics, dest_playlists, process_audio,
+                        process_lyrics, process_playlists, update_playlists, mode,
+                        save_logs=False, log_queue=None):
+        sse_log_queue = Queue()
+        self.log_queues[operation_id] = sse_log_queue
+        self.active_downloads[operation_id] = True
+
+        if save_logs and log_queue:
+            combined_queue = Queue()
+            threading.Thread(
+                target=self._forward_logs,
+                args=(combined_queue, sse_log_queue, log_queue),
+                daemon=True,
+            ).start()
+            thread_log_queue = combined_queue
+        else:
+            thread_log_queue = sse_log_queue
+
+        thread = threading.Thread(
+            target=self._move_copy_thread,
+            args=(operation_id, source_audio, source_lyrics, source_playlists,
+                dest_audio, dest_lyrics, dest_playlists, process_audio,
+                process_lyrics, process_playlists, update_playlists, mode,
+                thread_log_queue, save_logs),
+            daemon=True
+        )
+        thread.start()
+
+    def _move_copy_thread(self, operation_id, source_audio, source_lyrics, source_playlists,
+                        dest_audio, dest_lyrics, dest_playlists, process_audio,
+                        process_lyrics, process_playlists, update_playlists, mode,
+                        log_queue, save_logs):
+        try:
+            log_queue.put("[MOVE/COPY] Starting library move/copy operation")
+            log_queue.put(f"[MODE] {mode.upper()}")
+
+            # Build file maps
+            audio_map = {}   # old_path -> new_path
+            lyrics_map = {}
+            playlist_map = {}
+
+            # 1. Process audio files
+            if process_audio and os.path.isdir(source_audio):
+                log_queue.put("[AUDIO] Scanning source audio directory...")
+                for root, _, files in os.walk(source_audio):
+                    for f in files:
+                        if f.lower().endswith(AUDIO_EXTENSIONS):
+                            old_path = os.path.join(root, f)
+                            rel_path = os.path.relpath(old_path, source_audio)
+                            new_path = os.path.join(dest_audio, rel_path)
+                            audio_map[old_path] = new_path
+
+            # 2. Process lyrics files (.lrc)
+            if process_lyrics and os.path.isdir(source_lyrics):
+                log_queue.put("[LYRICS] Scanning source lyrics directory...")
+                for root, _, files in os.walk(source_lyrics):
+                    for f in files:
+                        if f.lower().endswith('.lrc'):
+                            old_path = os.path.join(root, f)
+                            rel_path = os.path.relpath(old_path, source_lyrics)
+                            new_path = os.path.join(dest_lyrics, rel_path)
+                            lyrics_map[old_path] = new_path
+
+            # 3. Process playlist files (.m3u, .m3u8, .pls)
+            if process_playlists and os.path.isdir(source_playlists):
+                log_queue.put("[PLAYLIST] Scanning source playlist directory...")
+                for root, _, files in os.walk(source_playlists):
+                    for f in files:
+                        if f.lower().endswith(('.m3u', '.m3u8', '.pls')):
+                            old_path = os.path.normpath(os.path.join(root, f))
+                            if not os.path.exists(old_path):
+                                log_queue.put(f"[WARNING] Playlist file not found: {old_path}")
+                                continue
+                            rel_path = os.path.relpath(old_path, source_playlists)
+                            new_path = os.path.normpath(os.path.join(dest_playlists, rel_path))
+                            playlist_map[old_path] = new_path
+
+            total_files = len(audio_map) + len(lyrics_map) + len(playlist_map)
+            processed = 0
+
+            # Helper to copy/move a file
+            def process_file(old, new, file_type):
+                nonlocal processed
+                try:
+                    old = os.path.normpath(old)
+                    new = os.path.normpath(new)
+                    if not os.path.exists(old):
+                        log_queue.put(f"[WARNING] Source {file_type} file not found: {old}")
+                        processed += 1
+                        log_queue.put(f"[PROGRESS] {processed}/{total_files}")
+                        return
+
+                    dest_dir = os.path.dirname(new)
+                    os.makedirs(dest_dir, exist_ok=True)
+
+                    # Check if destination directory is writable
+                    if not os.access(dest_dir, os.W_OK):
+                        log_queue.put(f"[ERROR] Destination directory not writable: {dest_dir}")
+                        processed += 1
+                        log_queue.put(f"[PROGRESS] {processed}/{total_files}")
+                        return
+
+                    # If destination file exists and is read-only, try to make it writable
+                    if os.path.exists(new) and not os.access(new, os.W_OK):
+                        try:
+                            os.chmod(new, 0o644)
+                            log_queue.put(f"[{file_type}] Changed permissions for existing file: {os.path.basename(new)}")
+                        except Exception as perm_e:
+                            log_queue.put(f"[WARNING] Could not change permissions for {new}: {str(perm_e)}")
+
+                    if mode == 'move':
+                        shutil.move(old, new)
+                        log_queue.put(f"[{file_type}] Moved: {os.path.basename(old)}")
+                    else:
+                        shutil.copy2(old, new)
+                        log_queue.put(f"[{file_type}] Copied: {os.path.basename(old)}")
+                except PermissionError as e:
+                    log_queue.put(f"[ERROR] Permission denied when {mode}ing {file_type} from {old} to {new}: {str(e)}. Check write permissions on destination directory.")
+                except Exception as e:
+                    log_queue.put(f"[ERROR] Failed to {mode} {file_type} {old}: {str(e)}")
+                finally:
+                    processed += 1
+                    log_queue.put(f"[PROGRESS] {processed}/{total_files}")
+
+            # Execute audio files
+            for old, new in audio_map.items():
+                process_file(old, new, "AUDIO")
+
+            # Execute lyrics files
+            for old, new in lyrics_map.items():
+                process_file(old, new, "LYRICS")
+
+            # Execute playlist files (but we might need to update them later)
+            for old, new in playlist_map.items():
+                process_file(old, new, "PLAYLIST")
+
+            # 4. Update playlist references if requested
+            if update_playlists and process_playlists and playlist_map:
+                log_queue.put("[PLAYLIST] Updating references in moved/copied playlists...")
+                # Build reverse mapping: new audio path -> old audio path (for relative path calculation)
+                old_to_new_audio = audio_map
+                new_to_old_audio = {v: k for k, v in old_to_new_audio.items()}
+
+                for old_playlist, new_playlist in playlist_map.items():
+                    # Determine path style used in the original playlist
+                    with open(old_playlist, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = f.readlines()
+
+                    path_style = self._detect_playlist_path_style(lines)
+                    playlist_dir_old = os.path.dirname(old_playlist)
+                    playlist_dir_new = os.path.dirname(new_playlist)
+
+                    updated_lines = []
+                    changes = 0
+
+                    for line in lines:
+                        stripped = line.strip()
+                        if not stripped or stripped.startswith('#'):
+                            updated_lines.append(line)
+                            continue
+
+                        # Resolve original audio file path from playlist entry
+                        if path_style == 'absolute':
+                            old_audio_path = stripped
+                        elif path_style == 'relative':
+                            old_audio_path = os.path.normpath(os.path.join(playlist_dir_old, stripped))
+                        else:  # filename only
+                            # Search in the audio map by basename
+                            basename = os.path.basename(stripped)
+                            matches = [old for old in old_to_new_audio if os.path.basename(old) == basename]
+                            old_audio_path = matches[0] if matches else None
+
+                        if old_audio_path and old_audio_path in old_to_new_audio:
+                            new_audio_path = old_to_new_audio[old_audio_path]
+                            # Rebuild the playlist entry according to original style
+                            if path_style == 'absolute':
+                                new_entry = new_audio_path
+                            elif path_style == 'relative':
+                                new_entry = os.path.relpath(new_audio_path, playlist_dir_new)
+                            else:  # filename only
+                                new_entry = os.path.basename(new_audio_path)
+                            updated_lines.append(new_entry + '\n')
+                            changes += 1
+                            log_queue.put(f"[PLAYLIST] Updated reference: {os.path.basename(old_audio_path)} → {os.path.basename(new_audio_path)}")
+                        else:
+                            # Keep original line (could not resolve or not moved)
+                            updated_lines.append(line)
+
+                    if changes > 0:
+                        with open(new_playlist, 'w', encoding='utf-8') as f:
+                            f.writelines(updated_lines)
+                        log_queue.put(f"[PLAYLIST] Updated {changes} entries in {os.path.basename(new_playlist)}")
+
+            log_queue.put("[MOVE/COPY COMPLETE]")
+        except Exception as e:
+            log_queue.put(f"[ERROR] Move/copy operation failed: {str(e)}")
+        finally:
+            if save_logs:
+                self.log_manager.stop_logging(operation_id)
+            self.active_downloads.pop(operation_id, None)
+            log_queue.put("[END]")
 
     def _log_migration(
         self,

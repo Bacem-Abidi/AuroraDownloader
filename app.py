@@ -1200,5 +1200,60 @@ def clear_all_logs():
         return jsonify({"error": str(e)}), 500
 
 
+
+@app.route("/move_copy/start", methods=["POST"])
+def start_move_copy():
+    data = request.get_json()
+    source_audio = data.get("source_audio")
+    source_lyrics = data.get("source_lyrics")
+    source_playlists = data.get("source_playlists")
+    dest_audio = data.get("dest_audio")
+    dest_lyrics = data.get("dest_lyrics")
+    dest_playlists = data.get("dest_playlists")
+    process_audio = data.get("process_audio", True)
+    process_lyrics = data.get("process_lyrics", True)
+    process_playlists = data.get("process_playlists", True)
+    update_playlists = data.get("update_playlists", True)
+    mode = data.get("mode", "move")   # "move" or "copy"
+    save_logs = data.get("save_logs", app.config["SAVE_LOGS"])
+
+    # Expand paths
+    source_audio = expand_path(source_audio)
+    source_lyrics = expand_path(source_lyrics)
+    source_playlists = expand_path(source_playlists)
+    dest_audio = expand_path(dest_audio)
+    dest_lyrics = expand_path(dest_lyrics)
+    dest_playlists = expand_path(dest_playlists)
+
+    # Ensure destination directories exist
+    for d in [dest_audio, dest_lyrics, dest_playlists]:
+        os.makedirs(d, exist_ok=True)
+
+    operation_id = str(uuid.uuid4())
+
+    if save_logs:
+        log_queue = log_manager.start_logging(operation_id, "move_copy")
+    else:
+        log_queue = None
+
+    download_manager.start_move_copy(
+        operation_id=operation_id,
+        source_audio=source_audio,
+        source_lyrics=source_lyrics,
+        source_playlists=source_playlists,
+        dest_audio=dest_audio,
+        dest_lyrics=dest_lyrics,
+        dest_playlists=dest_playlists,
+        process_audio=process_audio,
+        process_lyrics=process_lyrics,
+        process_playlists=process_playlists,
+        update_playlists=update_playlists,
+        mode=mode,
+        save_logs=save_logs,
+        log_queue=log_queue,
+    )
+
+    return jsonify({"operation_id": operation_id})
+
 if __name__ == "__main__":
     app.run(debug=True)

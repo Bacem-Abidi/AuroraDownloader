@@ -151,6 +151,113 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+
+  const startMoveBtn = document.getElementById("start-move-btn");
+  const moveStatusDiv = document.getElementById("move-status");
+  const moveProgressText = document.getElementById("move-progress-text");
+  const moveProgressBar = document.getElementById("move-progress-bar");
+  const moveTitle = document.getElementById("move-title");
+
+  startMoveBtn.addEventListener("click", async () => {
+      const sourceAudio = document.getElementById("move-audio-source").value;
+      const sourceLyrics = document.getElementById("move-lyrics-source").value;
+      const sourcePlaylists = document.getElementById("move-playlists-source").value;
+      const destAudio = document.getElementById("move-audio-dest").value;
+      const destLyrics = document.getElementById("move-lyrics-dest").value;
+      const destPlaylists = document.getElementById("move-playlists-dest").value;
+      const processAudio = document.getElementById("move-audio-enabled").checked;
+      const processLyrics = document.getElementById("move-lyrics-enabled").checked;
+      const processPlaylists = document.getElementById("move-playlists-enabled").checked;
+      const updatePlaylists = document.getElementById("move-update-playlists").checked;
+      const mode = document.getElementById("move-mode").value;
+      const saveLogs = document.getElementById("save-logs-toggle").checked;
+
+      startMoveBtn.disabled = true;
+      startMoveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+      moveStatusDiv.style.display = "block";
+      moveProgressText.textContent = "0/0";
+      moveProgressBar.style.width = "0%";
+      moveTitle.textContent = "Preparing...";
+
+      try {
+          const response = await fetch("/move_copy/start", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                  source_audio: sourceAudio,
+                  source_lyrics: sourceLyrics,
+                  source_playlists: sourcePlaylists,
+                  dest_audio: destAudio,
+                  dest_lyrics: destLyrics,
+                  dest_playlists: destPlaylists,
+                  process_audio: processAudio,
+                  process_lyrics: processLyrics,
+                  process_playlists: processPlaylists,
+                  update_playlists: updatePlaylists,
+                  mode: mode,
+                  save_logs: saveLogs,
+              }),
+          });
+
+          const data = await response.json();
+          if (data.operation_id) {
+              const eventSource = new EventSource(`/logs/${data.operation_id}`);
+
+              eventSource.onmessage = (event) => {
+                  const msg = event.data;
+                  // Update progress from [PROGRESS] messages
+                  const progressMatch = msg.match(/\[PROGRESS\] (\d+)\/(\d+)/);
+                  if (progressMatch) {
+                      const current = parseInt(progressMatch[1]);
+                      const total = parseInt(progressMatch[2]);
+                      moveProgressText.textContent = `${current}/${total}`;
+                      const percent = (current / total) * 100;
+                      moveProgressBar.style.width = `${percent}%`;
+                  }
+
+                  // Update title from first meaningful message
+                  if (msg.includes("[MOVE/COPY] Starting") && moveTitle.textContent === "Preparing...") {
+                      moveTitle.textContent = "Moving/Copying files...";
+                  }
+
+                  // Add logs to the main log output (reuse existing addLog)
+                  if (window.App && window.App.addLog) {
+                      window.App.addLog(msg);
+                  }
+
+                  if (msg === "[END]") {
+                      eventSource.close();
+                      startMoveBtn.disabled = false;
+                      startMoveBtn.innerHTML = '<i class="fas fa-random"></i> Start Moving/Copying';
+                      moveTitle.textContent = "Completed";
+                  }
+              };
+
+              eventSource.onerror = (err) => {
+                  console.error("Move/copy SSE error:", err);
+                  eventSource.close();
+                  startMoveBtn.disabled = false;
+                  startMoveBtn.innerHTML = '<i class="fas fa-random"></i> Start Moving/Copying';
+                  moveTitle.textContent = "Error occurred";
+                  if (window.App && window.App.addLog) {
+                      window.App.addLog("[ERROR] Move/copy log stream failed", "error");
+                  }
+              };
+          } else {
+              throw new Error("No operation_id returned");
+          }
+      } catch (error) {
+          console.error("Move/copy start error:", error);
+          startMoveBtn.disabled = false;
+          startMoveBtn.innerHTML = '<i class="fas fa-random"></i> Start Moving/Copying';
+          moveTitle.textContent = "Failed to start";
+          if (window.App && window.App.addLog) {
+              window.App.addLog(`[ERROR] ${error.message}`, "error");
+          }
+      }
+  });
+
   function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
