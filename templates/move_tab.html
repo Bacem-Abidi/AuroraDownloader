@@ -1,0 +1,179 @@
+{% block move %}
+<div class="control-group">
+  <h3>Library Move / Copy</h3>
+</div>
+
+<div class="config-group">
+  <h3>Source Library</h3>
+  <div class="options-grid" style="margin-top: 20px">
+    <div class="option">
+      <label>Audio Directory</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="move-audio-source"
+          class="form-control"
+          value="Downloads/Songs"
+        />
+      </div>
+    </div>
+    <div class="option">
+      <label>Lyrics Directory</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="move-lyrics-source"
+          class="form-control"
+          value="Downloads/Lyrics"
+        />
+      </div>
+    </div>
+    <div class="option">
+      <label>Playlists Directory</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="move-playlists-source"
+          class="form-control"
+          value="Downloads/Playlists"
+        />
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="config-group">
+  <h3>Destination</h3>
+  <div class="options-grid" style="margin-top: 20px">
+    <div class="option">
+      <label>Audio Directory</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="move-audio-dest"
+          class="form-control"
+          value="Downloads/Songs"
+        />
+      </div>
+    </div>
+    <div class="option">
+      <label>Lyrics Directory</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="move-lyrics-dest"
+          class="form-control"
+          value="Downloads/Lyrics"
+        />
+      </div>
+    </div>
+    <div class="option">
+      <label>Playlists Directory</label>
+      <div class="input-group">
+        <input
+          type="text"
+          id="move-playlists-dest"
+          class="form-control"
+          value="Downloads/Playlists"
+        />
+      </div>
+    </div>
+  </div>
+</div>
+<div class="config-group">
+  <h3>File Handling</h3>
+  <div class="option-group" style="margin: 12px 0">
+    <div class="form-check">
+      <input
+        class="form-check-input"
+        type="checkbox"
+        id="move-audio-enabled"
+        checked
+      />
+      <label class="form-check-label" for="move-audio-enabled">
+        Process Audio Files?
+      </label>
+    </div>
+  </div>
+  <div class="option-group" style="margin: 12px 0">
+    <div class="form-check">
+      <input
+        class="form-check-input"
+        type="checkbox"
+        id="move-lyrics-enabled"
+        checked
+      />
+      <label class="form-check-label" for="move-lyrics-enabled">
+        Process Lyrics Files?
+      </label>
+    </div>
+  </div>
+  <div class="option-group" style="margin: 12px 0">
+    <div class="form-check">
+      <input
+        class="form-check-input"
+        type="checkbox"
+        id="move-playlists-enabled"
+        checked
+      />
+      <label class="form-check-label" for="move-playlists-enabled">
+        Process Playlists Files?
+      </label>
+    </div>
+  </div>
+</div>
+<div class="config-group">
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" id="move-update-playlists" checked>
+    <label class="form-check-label" for="move-update-playlists">
+      Update playlist references (only if stored as absolute paths)
+    </label>
+    <small class="text-muted">Modifies playlist files to point to the new audio locations.</small>
+  </div>
+</div>
+<div class="config-group">
+  <div
+    class="option"
+    style="
+      flex-direction: row;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 15px;
+    "
+  >
+    <label>Mode: </label>
+    <select id="move-mode" class="form-control" style="width: 100%">
+      <option value="move">Move (files will be moved)</option>
+      <option value="copy">Copy (files will be copied, originals kept)</option>
+    </select>
+  </div>
+  <small
+    class="warning"
+    id="move-warning"
+    style="display: none; color: #ffaa00"
+  >
+    ⚠️ Moving will move the files from the old folder to the new Destination and
+    it might corrupt some files in the case either the source or the Destination
+    folder were unmounted or been tempered with in the process please Use with
+    caution and ensure you have enough space in the new folder.
+  </small>
+</div>
+<!-- Action -->
+<div class="action-center">
+  <button id="start-move-btn" class="btn btn-primary btn-lg">
+    <i class="fas fa-random"></i> Start Moving/Copying 
+  </button>
+</div>
+
+
+<div class="playlist-status" id="move-status" style="display: none;">
+  <div class="playlist-header">
+    <h4><i class="fas fa-list"></i> Songs Processed</h4>
+    <span id="move-progress-text">0/0</span>
+  </div>
+  <div class="playlist-title" id="move-title">Preparing...</div>
+  <div class="move-progress">
+    <div class="playlist-progress-bar" id="move-progress-bar"></div>
+  </div>
+</div>
+{% endblock %}

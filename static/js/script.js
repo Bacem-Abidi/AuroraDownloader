@@ -61,6 +61,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const clearAllLogsBtn = document.getElementById("clear-all-logs");
   const deleteCurrentLogBtn = document.getElementById("delete-current-log");
 
+  // Move tab fields
+  const moveAudioSource = document.getElementById("move-audio-source");
+  const moveLyricsSource = document.getElementById("move-lyrics-source");
+  const movePlaylistsSource = document.getElementById("move-playlists-source");
+
   // Keep track of the currently selected log filename
   let currentSelectedLog = null;
 
@@ -134,6 +139,17 @@ document.addEventListener("DOMContentLoaded", () => {
       goToPrevMatch();
     }
   });
+
+  const moveModeSelect = document.getElementById("move-mode");
+  const moveWarning = document.getElementById("move-warning");
+  if (moveModeSelect && moveWarning) {
+    moveWarning.style.display =
+      moveModeSelect.value === "move" ? "inline-block" : "none";
+    moveModeSelect.addEventListener("change", () => {
+      moveWarning.style.display =
+        moveModeSelect.value === "move" ? "inline-block" : "none";
+    });
+  }
 
   function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -583,6 +599,12 @@ document.addEventListener("DOMContentLoaded", () => {
       threshold.value = prefs.matchThreshold;
       valueLabel.textContent = prefs.matchThreshold + "%";
       document.getElementById("fallback-policy-default").value = prefs.fallback;
+      if (moveAudioSource) moveAudioSource.value = prefs.audioDir || "~/Music";
+      if (moveLyricsSource)
+        moveLyricsSource.value = prefs.lyricsDir || "~/Music/lyrics";
+      if (movePlaylistsSource)
+        movePlaylistsSource.value =
+          prefs.playlistDir || "~/.config/mpd/playlists";
       console.log("Preferences loaded successfully");
     } catch (e) {
       console.error("Error loading preferences:", e);
