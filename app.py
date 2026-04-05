@@ -16,6 +16,11 @@ from datetime import datetime
 from ytmusicapi import YTMusic
 from mutagen.id3 import ID3
 
+import markdown
+import bleach
+from markdown.extensions.codehilite import CodeHiliteExtension
+from markdown.extensions.toc import TocExtension
+
 from metadata_helpers import (
     update_audio_metadata,
     embed_artwork_from_file,
@@ -211,6 +216,57 @@ def get_audio_stats(path):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route('/docs')
+def docs():
+    """Documentation index with sidebar and selected doc viewer."""
+    docs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs')
+    if not os.path.isdir(docs_dir):
+        return render_template('docs_index.html', files=[], content=None, error="Docs folder not found")
+
+    # List all .md files
+    md_files = []
+    for f in sorted(os.listdir(docs_dir)):
+        if f.endswith('.md'):
+            md_files.append({
+                'filename': f,
+                'title': f.replace('.md', '').replace('_', ' ').title()
+            })
+
+    # Get selected doc from query param
+    selected = request.args.get('doc')
+    content_html = None
+    error = None
+    selected_title = None
+
+    if selected and selected.endswith('.md'):
+        safe_name = os.path.basename(selected)
+        filepath = os.path.join(docs_dir, safe_name)
+        if os.path.exists(filepath):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                md_content = f.read()
+            # Convert markdown to HTML
+            content_html = markdown.markdown(
+                md_content,
+                extensions=[
+                    'extra', 'codehilite', 'toc', 'fenced_code', 'smarty'
+                ]
+            )
+            selected_title = safe_name.replace('.md', '').replace('_', ' ').title()
+        else:
+            error = "Document not found"
+    elif selected:
+        error = "Invalid document"
+
+    return render_template(
+        'docs_index.html',
+        files=md_files,
+        content=content_html,
+        selected=selected,
+        selected_title=selected_title,
+        error=error
+    )
 
 
 @app.route("/preferences", methods=["GET"])
