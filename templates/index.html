@@ -27,9 +27,10 @@ styles %} {{ super() }}
         <button id="history-button" class="btn btn-outline-secondary">
             <i class="fas fa-history"></i> History
         </button>
-        <a href="{{ url_for('docs') }}" class="btn btn-outline-info ms-2">
+        <button onclick="window.open('{{ url_for('docs') }}', '_blank', 'noopener,noreferrer')"  
+              class="btn btn-outline-secondary">
             <i class="fas fa-book"></i> Documentation
-        </a>
+        </button>
     </div>
   </header>
   <div class="main-content">
