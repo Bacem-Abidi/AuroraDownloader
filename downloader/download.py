@@ -1339,204 +1339,49 @@ class DownloadManager:
                     entries.append(os.path.join(root, filename))
 
         entries.sort(key=lambda p: os.path.basename(p).lower())
-
-        for i, path in enumerate(entries):
-            filename = os.path.basename(path)
-            log_queue.put(
-                f"[MIGRATE] Migrating File {i + 1}/{len(entries)}: {filename}"
-            )
-
-            try:
-                meta = self.get_audio_metadata(path)
-                if not meta:
-                    raise Exception("MetaData was not fetched")
-                title = meta["title"]
-                artist = meta["artist"]
-
-                log_queue.put(f"[SCAN] {title} — {artist}")
-
-                query = f"{title} {artist}"
-                search_filter = "songs"
-
-                # --- First pass: VIDEOS ---
-                cleaned = self._search_and_clean(
-                    query, title, artist, match_threshold, search_filter=search_filter
+        try:
+            for i, path in enumerate(entries):
+                filename = os.path.basename(path)
+                log_queue.put(
+                    f"[MIGRATE] Migrating File {i + 1}/{len(entries)}: {filename}"
                 )
 
-                # --- Second pass: SONGS (only if low confidence) ---
-                if not cleaned:
-                    log_queue.put(
-                        "[RETRY] Low confidence — retrying with Videos filter"
-                    )
-                    search_filter = "videos"
+                try:
+                    meta = self.get_audio_metadata(path)
+                    if not meta:
+                        raise Exception("MetaData was not fetched")
+                    title = meta["title"]
+                    artist = meta["artist"]
 
+                    log_queue.put(f"[SCAN] {title} — {artist}")
+
+                    query = f"{title} {artist}"
+                    search_filter = "songs"
+
+                    # --- First pass: VIDEOS ---
                     cleaned = self._search_and_clean(
-                        query,
-                        title,
-                        artist,
-                        match_threshold,
-                        search_filter=search_filter,
-                        log_queue=log_queue,
+                        query, title, artist, match_threshold, search_filter=search_filter
                     )
-                    log_queue.put(f"[RETRY] Low confidence — retrying result {cleaned}")
 
-                if len(cleaned) == 1:
-                    log_queue.put(f"result {cleaned}")
-                    self._apply_migration(
-                        lyrics_dir,
-                        playlist_dir,
-                        path,
-                        cleaned[0]["videoId"],
-                        log_queue,
-                    )
-                elif len(cleaned) > 1:
-                    if fallback == "manual":
-                        log_queue.put("[CHOICE_REQUIRED]")
-
-                        choice_event = threading.Event()
-                        self.migration_choices[migration_id] = {
-                            "event": choice_event,
-                            "action": None,
-                            "video_id": None,
-                        }
-
+                    # --- Second pass: SONGS (only if low confidence) ---
+                    if not cleaned:
                         log_queue.put(
-                            json.dumps(
-                                {
-                                    "type": "choice",
-                                    "file": path,
-                                    "title": title,
-                                    "artist": artist,
-                                    "candidates": cleaned[:10],
-                                    "allow_research": True,
-                                    "allow_manual": True,
-                                    "search_filter": search_filter,
-                                }
-                            )
+                            "[RETRY] Low confidence — retrying with Videos filter"
                         )
+                        search_filter = "videos"
 
-                        choice_event.wait()
-
-                        choice = self.migration_choices[migration_id]
-                        del self.migration_choices[migration_id]
-
-                        if choice["action"] == "select":
-                            self._apply_migration(
-                                lyrics_dir,
-                                playlist_dir,
-                                path,
-                                choice["video_id"],
-                                log_queue,
-                            )
-                            continue
-
-                        if choice["action"] == "manual":
-                            log_queue.put("[MANUAL] User provided video ID")
-
-                            self._apply_migration(
-                                lyrics_dir,
-                                playlist_dir,
-                                path,
-                                choice["video_id"],
-                                log_queue,
-                            )
-                            continue
-
-                        action = choice["action"]
-                        if action and action.startswith("research_"):
-                            search_filter = action.split("_", 1)[1]
-                            log_queue.put(
-                                f"[RESEARCH] User requested {search_filter.upper()} search"
-                            )
-
-                            cleaned = self._search_and_clean(
-                                query,
-                                title,
-                                artist,
-                                match_threshold,
-                                search_filter=search_filter,
-                            )
-
-                            if cleaned:
-                                choice_event = threading.Event()
-                                self.migration_choices[migration_id] = {
-                                    "event": choice_event,
-                                    "action": None,
-                                    "video_id": None,
-                                }
-
-                                log_queue.put(
-                                    json.dumps(
-                                        {
-                                            "type": "choice",
-                                            "file": path,
-                                            "title": title,
-                                            "artist": artist,
-                                            "candidates": cleaned[:10],
-                                            "allow_research": False,  # prevent infinite loop
-                                            "allow_manual": True,
-                                            "search_filter": search_filter,
-                                        }
-                                    )
-                                )
-
-                                choice_event.wait()
-                                choice = self.migration_choices[migration_id]
-                                del self.migration_choices[migration_id]
-
-                                if choice["action"] == "select":
-                                    self._apply_migration(
-                                        lyrics_dir,
-                                        playlist_dir,
-                                        path,
-                                        choice["video_id"],
-                                        log_queue,
-                                    )
-                                if choice["action"] == "manual":
-                                    log_queue.put("[MANUAL] User provided video ID")
-
-                                    self._apply_migration(
-                                        lyrics_dir,
-                                        playlist_dir,
-                                        path,
-                                        choice["video_id"],
-                                        log_queue,
-                                    )
-                                    continue
-                                else:
-                                    self._log_migration(
-                                        path,
-                                        title,
-                                        artist,
-                                        "skipped",
-                                        "user skipped",
-                                    )
-                                    log_queue.put(
-                                        "[SKIP] User skipped after SONGS search"
-                                    )
-
-                            else:
-                                self._log_migration(
-                                    path,
-                                    title,
-                                    artist,
-                                    "skipped",
-                                    "no matches were found",
-                                )
-                                log_queue.put("[SKIP] No SONGS matches found")
-
-                            continue
-
-                        self._log_migration(
-                            path,
+                        cleaned = self._search_and_clean(
+                            query,
                             title,
                             artist,
-                            "skipped",
-                            "user skipped",
+                            match_threshold,
+                            search_filter=search_filter,
+                            log_queue=log_queue,
                         )
-                        log_queue.put("[SKIP] User skipped")
-                        continue
-                    elif fallback == "best":
+                        log_queue.put(f"[RETRY] Low confidence — retrying result {cleaned}")
+
+                    if len(cleaned) == 1:
+                        log_queue.put(f"result {cleaned}")
                         self._apply_migration(
                             lyrics_dir,
                             playlist_dir,
@@ -1544,33 +1389,190 @@ class DownloadManager:
                             cleaned[0]["videoId"],
                             log_queue,
                         )
-                        continue
+                    elif len(cleaned) > 1:
+                        if fallback == "manual":
+                            log_queue.put("[CHOICE_REQUIRED]")
+
+                            choice_event = threading.Event()
+                            self.migration_choices[migration_id] = {
+                                "event": choice_event,
+                                "action": None,
+                                "video_id": None,
+                            }
+
+                            log_queue.put(
+                                json.dumps(
+                                    {
+                                        "type": "choice",
+                                        "file": path,
+                                        "title": title,
+                                        "artist": artist,
+                                        "candidates": cleaned[:10],
+                                        "allow_research": True,
+                                        "allow_manual": True,
+                                        "search_filter": search_filter,
+                                    }
+                                )
+                            )
+
+                            choice_event.wait()
+
+                            choice = self.migration_choices[migration_id]
+                            del self.migration_choices[migration_id]
+
+                            if choice["action"] == "select":
+                                self._apply_migration(
+                                    lyrics_dir,
+                                    playlist_dir,
+                                    path,
+                                    choice["video_id"],
+                                    log_queue,
+                                )
+                                continue
+
+                            if choice["action"] == "manual":
+                                log_queue.put("[MANUAL] User provided video ID")
+
+                                self._apply_migration(
+                                    lyrics_dir,
+                                    playlist_dir,
+                                    path,
+                                    choice["video_id"],
+                                    log_queue,
+                                )
+                                continue
+
+                            action = choice["action"]
+                            if action and action.startswith("research_"):
+                                search_filter = action.split("_", 1)[1]
+                                log_queue.put(
+                                    f"[RESEARCH] User requested {search_filter.upper()} search"
+                                )
+
+                                cleaned = self._search_and_clean(
+                                    query,
+                                    title,
+                                    artist,
+                                    match_threshold,
+                                    search_filter=search_filter,
+                                )
+
+                                if cleaned:
+                                    choice_event = threading.Event()
+                                    self.migration_choices[migration_id] = {
+                                        "event": choice_event,
+                                        "action": None,
+                                        "video_id": None,
+                                    }
+
+                                    log_queue.put(
+                                        json.dumps(
+                                            {
+                                                "type": "choice",
+                                                "file": path,
+                                                "title": title,
+                                                "artist": artist,
+                                                "candidates": cleaned[:10],
+                                                "allow_research": False,  # prevent infinite loop
+                                                "allow_manual": True,
+                                                "search_filter": search_filter,
+                                            }
+                                        )
+                                    )
+
+                                    choice_event.wait()
+                                    choice = self.migration_choices[migration_id]
+                                    del self.migration_choices[migration_id]
+
+                                    if choice["action"] == "select":
+                                        self._apply_migration(
+                                            lyrics_dir,
+                                            playlist_dir,
+                                            path,
+                                            choice["video_id"],
+                                            log_queue,
+                                        )
+                                    if choice["action"] == "manual":
+                                        log_queue.put("[MANUAL] User provided video ID")
+
+                                        self._apply_migration(
+                                            lyrics_dir,
+                                            playlist_dir,
+                                            path,
+                                            choice["video_id"],
+                                            log_queue,
+                                        )
+                                        continue
+                                    else:
+                                        self._log_migration(
+                                            path,
+                                            title,
+                                            artist,
+                                            "skipped",
+                                            "user skipped",
+                                        )
+                                        log_queue.put(
+                                            "[SKIP] User skipped after SONGS search"
+                                        )
+
+                                else:
+                                    self._log_migration(
+                                        path,
+                                        title,
+                                        artist,
+                                        "skipped",
+                                        "no matches were found",
+                                    )
+                                    log_queue.put("[SKIP] No SONGS matches found")
+
+                                continue
+
+                            self._log_migration(
+                                path,
+                                title,
+                                artist,
+                                "skipped",
+                                "user skipped",
+                            )
+                            log_queue.put("[SKIP] User skipped")
+                            continue
+                        elif fallback == "best":
+                            self._apply_migration(
+                                lyrics_dir,
+                                playlist_dir,
+                                path,
+                                cleaned[0]["videoId"],
+                                log_queue,
+                            )
+                            continue
+                        else:
+                            self._log_migration(
+                                path,
+                                title,
+                                artist,
+                                "ambiguous",
+                                "multiple_matches",
+                                candidates=cleaned[:10],
+                            )
+                            log_queue.put("[AMBIGUOUS] Multiple candidates found")
                     else:
                         self._log_migration(
-                            path,
-                            title,
-                            artist,
-                            "ambiguous",
-                            "multiple_matches",
-                            candidates=cleaned[:10],
+                            path, title, artist, "skipped", "low_confidence"
                         )
-                        log_queue.put("[AMBIGUOUS] Multiple candidates found")
-                else:
-                    self._log_migration(
-                        path, title, artist, "skipped", "low_confidence"
-                    )
-                    log_queue.put("[SKIPPED] Low Confidance")
+                        log_queue.put("[SKIPPED] Low Confidance")
 
-            except Exception as e:
-                log_queue.put(f"[ERROR] {filename}: {str(e)}")
+                except Exception as e:
+                    log_queue.put(f"[ERROR] {filename}: {str(e)}")
+        except Exception as e:
+                log_queue.put(f"[ERROR] Migration thread error: {str(e)}")
 
-            finally:
-                log_queue.put("[MIGRATION] Completed")
-                if save_logs:
-                    self.log_manager.stop_logging(migration_id)
+        finally:
+            log_queue.put("[MIGRATION] Completed")
+            if save_logs:
+                self.log_manager.stop_logging(migration_id)
 
-                self.active_downloads.pop(migration_id, None)
-                log_queue.put("[END]")
+            self.active_downloads.pop(migration_id, None)
+            log_queue.put("[END]")
 
     def _search_and_clean(
         self, query, title, artist, match_threshold, search_filter, log_queue=None

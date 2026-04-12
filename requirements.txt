@@ -8,3 +8,5 @@ ytmusicapi==1.10.3
 mutagen==1.47.0
 unidecode==1.4.0
 pillow==12.1.0
+markdown==3.10.2
+bleach==6.3.0
