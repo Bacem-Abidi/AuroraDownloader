@@ -40,6 +40,8 @@ from logs import log_manager
 
 
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
+if not os.path.exists(CONFIG_DIR):
+    os.makedirs(CONFIG_DIR)
 PREFS_FILE = os.path.join(CONFIG_DIR, "preferences.json")
 AUDIO_EXTENSIONS = (".mp3", ".flac", ".wav", ".ogg", ".m4a")
 LIBRARY_CACHE = LibraryCache()
