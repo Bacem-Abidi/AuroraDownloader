@@ -40,8 +40,6 @@ from logs import log_manager
 
 
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
-if not os.path.exists(CONFIG_DIR):
-    os.makedirs(CONFIG_DIR)
 PREFS_FILE = os.path.join(CONFIG_DIR, "preferences.json")
 AUDIO_EXTENSIONS = (".mp3", ".flac", ".wav", ".ogg", ".m4a")
 LIBRARY_CACHE = LibraryCache()
@@ -1314,4 +1312,6 @@ def start_move_copy():
     return jsonify({"operation_id": operation_id})
 
 if __name__ == "__main__":
+    if not os.path.exists(CONFIG_DIR):
+        os.makedirs(CONFIG_DIR)
     app.run(debug=True)
