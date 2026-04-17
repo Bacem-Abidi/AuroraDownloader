@@ -62,6 +62,10 @@ Windows build, please grab the `.msi` installer from the [releases page](https:/
   lyrics on YouTube Music, none will be downloaded.
 - Make sure `yt-dlp` and `ffmpeg` are up‑to‑date to avoid compatibility issues.
 
+## 📚 Built-in documentation
+
+Open the web app and visit `/docs` to browse the built-in markdown documentation.
+
 ---
 
 Happy downloading! 🎶

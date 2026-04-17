@@ -1842,12 +1842,10 @@ class DownloadManager:
             log_queue.put("[MOVE/COPY] Starting library move/copy operation")
             log_queue.put(f"[MODE] {mode.upper()}")
 
-            # Build file maps
             audio_map = {}   # old_path -> new_path
             lyrics_map = {}
             playlist_map = {}
 
-            # 1. Process audio files
             if process_audio and os.path.isdir(source_audio):
                 log_queue.put("[AUDIO] Scanning source audio directory...")
                 for root, _, files in os.walk(source_audio):
@@ -1858,7 +1856,6 @@ class DownloadManager:
                             new_path = os.path.join(dest_audio, rel_path)
                             audio_map[old_path] = new_path
 
-            # 2. Process lyrics files (.lrc)
             if process_lyrics and os.path.isdir(source_lyrics):
                 log_queue.put("[LYRICS] Scanning source lyrics directory...")
                 for root, _, files in os.walk(source_lyrics):
@@ -1869,7 +1866,6 @@ class DownloadManager:
                             new_path = os.path.join(dest_lyrics, rel_path)
                             lyrics_map[old_path] = new_path
 
-            # 3. Process playlist files (.m3u, .m3u8, .pls)
             if process_playlists and os.path.isdir(source_playlists):
                 log_queue.put("[PLAYLIST] Scanning source playlist directory...")
                 for root, _, files in os.walk(source_playlists):
@@ -1886,7 +1882,6 @@ class DownloadManager:
             total_files = len(audio_map) + len(lyrics_map) + len(playlist_map)
             processed = 0
 
-            # Helper to copy/move a file
             def process_file(old, new, file_type):
                 nonlocal processed
                 try:
@@ -1930,27 +1925,21 @@ class DownloadManager:
                     processed += 1
                     log_queue.put(f"[PROGRESS] {processed}/{total_files}")
 
-            # Execute audio files
             for old, new in audio_map.items():
                 process_file(old, new, "AUDIO")
 
-            # Execute lyrics files
             for old, new in lyrics_map.items():
                 process_file(old, new, "LYRICS")
 
-            # Execute playlist files (but we might need to update them later)
             for old, new in playlist_map.items():
                 process_file(old, new, "PLAYLIST")
 
-            # 4. Update playlist references if requested
             if update_playlists and process_playlists and playlist_map:
                 log_queue.put("[PLAYLIST] Updating references in moved/copied playlists...")
-                # Build reverse mapping: new audio path -> old audio path (for relative path calculation)
                 old_to_new_audio = audio_map
                 new_to_old_audio = {v: k for k, v in old_to_new_audio.items()}
 
                 for old_playlist, new_playlist in playlist_map.items():
-                    # Determine path style used in the original playlist
                     with open(old_playlist, 'r', encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
 
@@ -1973,14 +1962,12 @@ class DownloadManager:
                         elif path_style == 'relative':
                             old_audio_path = os.path.normpath(os.path.join(playlist_dir_old, stripped))
                         else:  # filename only
-                            # Search in the audio map by basename
                             basename = os.path.basename(stripped)
                             matches = [old for old in old_to_new_audio if os.path.basename(old) == basename]
                             old_audio_path = matches[0] if matches else None
 
                         if old_audio_path and old_audio_path in old_to_new_audio:
                             new_audio_path = old_to_new_audio[old_audio_path]
-                            # Rebuild the playlist entry according to original style
                             if path_style == 'absolute':
                                 new_entry = new_audio_path
                             elif path_style == 'relative':
