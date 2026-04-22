@@ -4,8 +4,10 @@ import tempfile
 import subprocess
 
 class ThumbnailManager:
-    def __init__(self, temp_dir="temp"):
-        self.temp_dir = temp_dir
+    def __init__(self, temp_dir=None):
+        if temp_dir is None:
+            temp_dir = Path.home() / '.local/share/auroradownloader/temp'
+        self.temp_dir = Path(temp_dir)
         os.makedirs(temp_dir, exist_ok=True)
 
     def download_thumbnail(self, url, log_queue):
