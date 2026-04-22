@@ -7,9 +7,12 @@ from pathlib import Path
 
 
 class LogManager:
-    def __init__(self, logs_dir="logs"):
+    def __init__(self, logs_dir=None):
+        # If no directory is specified, use XDG-compliant user directory
+        if logs_dir is None:
+            logs_dir = Path.home() / '.local/share/auroradownloader/logs'
         self.logs_dir = Path(logs_dir)
-        self.logs_dir.mkdir(exist_ok=True)
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.log_queues = {}
         self.active_loggers = {}
         self.save_logs = True  # Default to not saving logs

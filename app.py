@@ -39,8 +39,13 @@ from difflib import SequenceMatcher
 from logs import log_manager
 
 
-CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
-PREFS_FILE = os.path.join(CONFIG_DIR, "preferences.json")
+from app_paths import (
+    get_config_dir, get_logs_dir, get_history_dir,
+    get_fail_dir, get_migration_dir, get_cache_dir
+)
+
+CONFIG_DIR = str(get_config_dir())
+PREFS_FILE = str(get_config_dir() / "preferences.json")
 AUDIO_EXTENSIONS = (".mp3", ".flac", ".wav", ".ogg", ".m4a")
 LIBRARY_CACHE = LibraryCache()
 
@@ -337,10 +342,10 @@ def start_download():
     os.makedirs(lyrics_dir, exist_ok=True)
 
     # Create history directory
-    history_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history")
+    history_dir = str(get_history_dir())
     os.makedirs(history_dir, exist_ok=True)
 
-    fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
+    fail_dir = str(get_fail_dir())
     os.makedirs(fail_dir, exist_ok=True)
 
     save_logs = data.get("save_logs", app.config["SAVE_LOGS"])
@@ -505,7 +510,7 @@ def start_migration():
 
     os.makedirs(audio_dir, exist_ok=True)
 
-    migrate_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "migration")
+    migrate_dir = str(get_migration_dir())
     os.makedirs(migrate_dir, exist_ok=True)
 
     migration_id = str(uuid.uuid4())
@@ -565,7 +570,7 @@ def stream_logs(download_id):
 
 @app.route("/history_files")
 def history_files():
-    history_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history")
+    history_dir = str(get_history_dir())
     files = [
         os.path.basename(f)
         for f in glob.glob(os.path.join(history_dir, "history_*.json"))
@@ -576,7 +581,7 @@ def history_files():
 @app.route("/history")
 def history_data():
     week = request.args.get("week", "current")
-    history_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history")
+    history_dir = str(get_history_dir())
 
     if week == "current":
         logger = HistoryLogger(history_dir)
@@ -964,7 +969,7 @@ def failed_library():
         offset = int(request.args.get("offset", 0))
         limit = int(request.args.get("limit", 30))
 
-        fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
+        fail_dir = str(get_fail_dir())
         if not os.path.isdir(fail_dir):
             return jsonify({"items": [], "total": 0, "hasMore": False})
 
@@ -1127,15 +1132,13 @@ def fix_playlist():
         lyrics_dir = expand_path(lyrics_dir)
         playlist_dir = expand_path(playlist_dir)
 
-        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+        log_dir = str(get_logs_dir())
         os.makedirs(log_dir, exist_ok=True)
 
-        history_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "history"
-        )
+        history_dir = str(get_history_dir())
         os.makedirs(history_dir, exist_ok=True)
 
-        fail_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fail")
+        fail_dir = str(get_fail_dir())
         os.makedirs(fail_dir, exist_ok=True)
 
         # Generate a unique ID for this operation
@@ -1312,6 +1315,4 @@ def start_move_copy():
     return jsonify({"operation_id": operation_id})
 
 if __name__ == "__main__":
-    if not os.path.exists(CONFIG_DIR):
-        os.makedirs(CONFIG_DIR)
     app.run(debug=True)
