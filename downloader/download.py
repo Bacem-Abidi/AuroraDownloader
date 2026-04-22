@@ -41,9 +41,9 @@ class DownloadManager:
         self.ytmusic = YTMusic()
         self.migration_logger = None
         self.logs = None
-        self.custom_temp_dir = "temp"
+        self.custom_temp_dir = Path.home() / '.local/share/auroradownloader/temp'
         os.makedirs(self.custom_temp_dir, exist_ok=True)
-        config_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
+        config_dir = Path.home() / '.local/share/auroradownloader/config'
 
         # Initialize helper classes
         self.metadata_manager = MetadataManager(self.custom_temp_dir)
