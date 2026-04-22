@@ -2,6 +2,7 @@ import os
 import requests
 import tempfile
 import subprocess
+from pathlib import Path
 
 class ThumbnailManager:
     def __init__(self, temp_dir=None):
