@@ -1,5 +1,6 @@
 import json
 import os
+from urllib.parse import urlparse, parse_qs, urlunparse
 
 class ProgressTracker:
     def __init__(self, config_dir):
@@ -11,7 +12,19 @@ class ProgressTracker:
             with open(self.progress_file, 'w') as f:
                 json.dump({}, f)
 
+    @staticmethod
+    def _normalize_url(url: str) -> str:
+        """Internal helper to trim playlist URLs."""
+        parsed = urlparse(url)
+        query_params = parse_qs(parsed.query)
+        if 'list' in query_params:
+            clean_query = f"list={query_params['list'][0]}"
+            trimmed = parsed._replace(query=clean_query)
+            return urlunparse(trimmed)
+        return url
+
     def get_progress(self, playlist_url):
+        playlist_url = self._normalize_url(playlist_url)
         try:
             with open(self.progress_file, 'r') as f:
                 progress_data = json.load(f)
@@ -20,6 +33,7 @@ class ProgressTracker:
             return None
 
     def save_progress(self, playlist_url, playlist_title, current_index, total):
+        playlist_url = self._normalize_url(playlist_url)
         try:
             with open(self.progress_file, 'r') as f:
                 progress_data = json.load(f)
@@ -37,6 +51,7 @@ class ProgressTracker:
             print(f"Error saving progress: {e}")
 
     def clear_progress(self, playlist_url):
+        playlist_url = self._normalize_url(playlist_url)
         try:
             with open(self.progress_file, 'r') as f:
                 progress_data = json.load(f)
